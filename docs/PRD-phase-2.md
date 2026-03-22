@@ -137,6 +137,10 @@ interface AppState {
 }
 ```
 
+### 3.6 Board Title Consistency
+
+**Phase 2 uses "My Board" as the default title for new boards.** This differs from Phase 1's legacy "My Kanban Board", but ensures consistency across all Phase 2 operations (fresh install, new board creation). Phase 1 data is migrated with its original title intact.
+
 ### 3.6 localStorage Schema (UPDATED)
 
 | Key                        | Type                    | Description                                                  |
@@ -165,7 +169,8 @@ interface AppState {
 | BL-001 | Display a list of all boards as cards on the home page at route `/`      | P0       |
 | BL-002 | Each board card shows: title, total card count, created date             | P0       |
 | BL-003 | Board card has collapsed view (title + total card count) by default      | P0       |
-| BL-004 | Board card has expanded view toggled by chevron: shows column names + per-column card counts | P1 |
+| BL-004 | Board card has expanded view toggled by chevron: shows column names + per-column card counts (lazy-loaded) | P1 |
+| BL-004a| Expanded view gracefully handles missing board data (render "—" instead of crashing) | P1 |
 | BL-005 | Clicking a board card navigates to `/boards/:boardId`                    | P0       |
 | BL-006 | Display a "+ New Board" button/card                                      | P0       |
 | BL-007 | Show empty state when no boards exist (should not occur due to min-1 rule, but defend against it) | P1 |
@@ -361,6 +366,26 @@ The global reducer MUST enforce these invariants:
 - **On board leave**: no explicit save needed (already saved on last action)
 - **Card count sync**: when a card is added or deleted within a board, dispatch `UPDATE_BOARD_CARD_COUNT` to update the global boards index
 - **Board rename sync**: when a board title is changed from within the board page (via breadcrumb or other means), dispatch `RENAME_BOARD` to update the global index
+
+---
+
+## 6.5 Deployment Configuration
+
+For production SPA (Single Page Application) to work correctly with client-side routing, the hosting platform must be configured to serve `index.html` for all routes. This ensures `/boards/{boardId}` deep URLs don't return 404s.
+
+**Vite Dev Server:** `historyApiFallback` is automatic — no config needed.
+
+**Production Hosts:**
+- **Vercel:** Auto-configures SPA fallback on build
+- **Netlify:** Add `netlify.toml`:
+  ```toml
+  [[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  ```
+- **GitHub Pages:** NOT recommended (lacks SPA fallback support)
+- **Self-hosted (nginx, etc.):** Configure server to serve `index.html` for 404s
 
 ---
 
@@ -705,10 +730,15 @@ Step 6: (Fresh install) Check if kanban_boards exists and has entries
         → If no: create default board
             a. Generate UUID for default board
             b. Create Board with title "My Board" and 3 default columns
+               ("To Do", "In Progress", "Done")
             c. Write kanban_boards = [defaultBoardMeta]
             d. Write kanban_board_{id} = defaultBoard
             e. Write kanban_cards_{id} = {}
             f. Write kanban_migrated = true
+
+Step 6a: (Edge case guard) If kanban_migrated = true but kanban_boards is empty
+        → Re-run Step 6 to create a fresh default board
+        → (Handles rare case where migration flag was written but boards index write failed)
 ```
 
 ### 9.2 Migration Safety
