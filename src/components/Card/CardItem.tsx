@@ -3,6 +3,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Card } from "../../types";
 import { getLabelColor } from "../../utils/labelColor";
+import { TaskSummary } from "./TaskSummary";
 
 /**
  * Floating card rendered inside DragOverlay while a drag is in progress.
@@ -176,6 +177,9 @@ export function CardItem({ card, onOpenDetail, isDragDisabled = false }: CardIte
           ))}
         </div>
       )}
+
+      {/* Task progress summary — hidden when card has no tasks (AC-2). */}
+      <TaskSummary taskIds={card.taskIds} />
     </li>
   );
 }
