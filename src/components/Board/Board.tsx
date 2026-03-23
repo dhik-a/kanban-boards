@@ -13,28 +13,40 @@ import {
 import {
   SortableContext,
   sortableKeyboardCoordinates,
-  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
 import { useBoardContext } from "../../context/BoardContext";
 import { useFilterContext } from "../../context/FilterContext";
 import { useToastContext } from "../../context/ToastContext";
 import { Column } from "./Column";
-import { AddColumn } from "./AddColumn";
 import { CardDetail } from "../Card/CardDetail";
 import { CardItemOverlay } from "../Card/CardItem";
+
+/**
+ * Phase 2 fixed column order. Columns are always rendered in this sequence
+ * regardless of how they are stored in state. Board.tsx looks up each column
+ * by title so the order is structural and cannot be changed by any mutation.
+ *
+ * PRD section 3.1 / TICKET-P2-004.
+ */
+const FIXED_COLUMN_TITLES = [
+  "To Do",
+  "In Progress",
+  "Done",
+  "Dropped",
+  "Blocked",
+] as const;
 
 /**
  * Top-level Board component.
  *
  * Responsibilities:
- * - Wraps the board in DndContext for both card and column drag-and-drop.
- * - Column IDs are plain UUIDs in SortableContext (horizontal layout).
- * - Card IDs are plain UUIDs in each Column's SortableContext (vertical layout).
- * - Distinguishes column vs card drag in onDragEnd by checking board.columns.
- * - Renders columns: flex-col on mobile (< md), flex-row with overflow-x-auto on desktop.
+ * - Wraps the board in DndContext for card drag-and-drop.
+ * - Renders exactly 5 fixed columns in canonical order (TICKET-P2-004).
+ * - Column reordering is disabled — columns are fixed per PRD section 3.1.
  * - Owns the "active card detail" state (which card modal is open).
- * - DnD is disabled for cards (but NOT columns) when any filter is active.
+ * - DnD is disabled for cards when any filter is active.
  *
  * Click-vs-drag detection: PointerSensor requires a 5px activation distance.
  */
@@ -48,9 +60,8 @@ export function Board() {
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeCardColumnId, setActiveCardColumnId] = useState<string | null>(null);
 
-  // Track which item is being dragged.
+  // Track which card is being dragged (for DragOverlay).
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
-  const [draggingColumnId, setDraggingColumnId] = useState<string | null>(null);
 
   // Store the trigger element so focus can be restored when the modal closes.
   const modalTriggerRef = useRef<HTMLElement | null>(null);
@@ -66,11 +77,9 @@ export function Board() {
 
   const handleDragStart = (event: DragStartEvent) => {
     const id = String(event.active.id);
-    // Determine whether this is a column drag or card drag.
+    // Only card drags are supported in Phase 2 (column drag removed).
     const isColumn = board.columns.some((col) => col.id === id);
-    if (isColumn) {
-      setDraggingColumnId(id);
-    } else {
+    if (!isColumn) {
       setDraggingCardId(id);
     }
   };
@@ -78,21 +87,15 @@ export function Board() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setDraggingCardId(null);
-    setDraggingColumnId(null);
 
     if (!over || active.id === over.id) return;
 
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    // ── Column reorder ────────────────────────────────────────────────────────
+    // Column drag is disabled in Phase 2 — ignore any column drag events.
     const isActiveColumn = board.columns.some((col) => col.id === activeId);
-    const isOverColumn = board.columns.some((col) => col.id === overId);
-
-    // Phase 2: column reordering is disabled — columns are fixed.
-    if (isActiveColumn && isOverColumn) {
-      return;
-    }
+    if (isActiveColumn) return;
 
     // ── Card DnD — disabled when filtering ───────────────────────────────────
     if (isFiltering) return;
@@ -141,8 +144,7 @@ export function Board() {
     } else {
       // Cross-column move. No pre-computed newCardIds needed — the reducer
       // simply removes the card from the source column and splices it into the
-      // destination. The off-by-one that requires arrayMove only occurs during
-      // same-column reorder because removal shifts subsequent indices.
+      // destination.
       const isDroppedOnColumn =
         destColumn.id === overId || overId === `col-drop-${destColumn.id}`;
       const destIndex = isDroppedOnColumn
@@ -182,8 +184,15 @@ export function Board() {
     });
   };
 
-  const canDelete = board.columns.length > 1;
-  const columnIds = board.columns.map((col) => col.id);
+  // Build the columns array in the fixed canonical order. If a column is not
+  // found in state (e.g., during a transition), it is silently omitted.
+  const orderedColumns = FIXED_COLUMN_TITLES
+    .map((title) => board.columns.find((col) => col.title === title))
+    .filter((col): col is NonNullable<typeof col> => col !== undefined);
+
+  // Card IDs across all columns — used only to provide a flat SortableContext
+  // id list for card-level DnD. Column IDs are not included (no column sort).
+  const allCardIds = orderedColumns.flatMap((col) => col.cardIds);
 
   return (
     <>
@@ -193,11 +202,7 @@ export function Board() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {/*
-          Outer SortableContext for column reordering (horizontal).
-          Each Column internally uses useSortable for its own ID.
-        */}
-        <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
+        <SortableContext items={allCardIds} strategy={verticalListSortingStrategy}>
           <main className="p-4 md:p-6">
             {/*
               Responsive layout (TICKET-011):
@@ -205,29 +210,21 @@ export function Board() {
               - Desktop (>= md): flex-row, overflow-x-auto for horizontal scroll.
             */}
             <div className="flex flex-col gap-4 md:flex-row md:overflow-x-auto md:pb-4 md:items-start">
-              {board.columns.map((column) => (
+              {orderedColumns.map((column) => (
                 <Column
                   key={column.id}
                   column={column}
-                  canDelete={canDelete}
                   onOpenCardDetail={openCardDetail}
                 />
               ))}
-              <AddColumn />
             </div>
           </main>
         </SortableContext>
 
-        {/* Floating preview for the item being dragged. */}
+        {/* Floating preview for the card being dragged. */}
         <DragOverlay>
           {draggingCardId && state.cards[draggingCardId] ? (
             <CardItemOverlay card={state.cards[draggingCardId]} />
-          ) : draggingColumnId ? (
-            <div className="bg-slate-100 dark:bg-slate-800 rounded-xl p-3 w-72 opacity-90 shadow-xl ring-2 ring-blue-400">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-                {board.columns.find((c) => c.id === draggingColumnId)?.title ?? "Column"}
-              </p>
-            </div>
           ) : null}
         </DragOverlay>
       </DndContext>
