@@ -1,4 +1,4 @@
-// ─── Core data model types — mirrored from PRD section 3 ─────────────────────
+// ─── Core data model types — mirrored from PRD phase 2 section 4 ──────────────
 
 export interface Board {
   id: string;
@@ -13,6 +13,7 @@ export interface Column {
   title: string;
   cardIds: string[]; // ordered list of card IDs
   color: string;     // hex color for column header accent
+  isFixed: boolean;  // Phase 2: all columns are fixed and non-configurable
 }
 
 export interface Card {
@@ -21,27 +22,44 @@ export interface Card {
   description: string;
   priority: "low" | "medium" | "high";
   labels: string[];
+  taskIds: string[]; // Phase 2: ordered list of task IDs (by createdAt ascending)
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }
 
-// Normalized state: board structure lives separately from card content so that
-// card lookups are O(1) and column reordering/moves don't require touching every card.
+// ─── Task types (Phase 2) ──────────────────────────────────────────────────────
+
+/**
+ * Five task statuses that mirror the five fixed board columns.
+ * Status is independent of the parent Card's column position.
+ */
+export type TaskStatus = "todo" | "in_progress" | "done" | "dropped" | "blocked";
+
+export interface Task {
+  id: string;
+  title: string;        // required, max 200 characters
+  description: string;  // optional (empty string default), max 1000 characters
+  status: TaskStatus;   // defaults to "todo" on creation
+  createdAt: string;    // ISO 8601
+  updatedAt: string;    // ISO 8601
+}
+
+// Normalized state: board structure lives separately from card and task content
+// so that lookups are O(1) and moves don't require touching every entity.
 export interface AppState {
   board: Board;
   cards: Record<string, Card>;
+  tasks: Record<string, Task>; // Phase 2: normalized task storage by ID
 }
 
-// ─── Reducer action union — PRD section 6.1 ──────────────────────────────────
+// ─── Reducer action union — Phase 2 ──────────────────────────────────────────
 
 export type Action =
   // Board
   | { type: "SET_BOARD_TITLE"; payload: string }
-  // Columns
-  | { type: "ADD_COLUMN"; payload: { title: string } }
+  // Columns — ADD_COLUMN, DELETE_COLUMN, REORDER_COLUMNS removed in Phase 2
+  // (columns are fixed and non-configurable)
   | { type: "UPDATE_COLUMN"; payload: { id: string; title?: string; color?: string } }
-  | { type: "DELETE_COLUMN"; payload: { id: string } }
-  | { type: "REORDER_COLUMNS"; payload: { sourceIndex: number; destinationIndex: number } }
   // Cards
   | { type: "ADD_CARD"; payload: { columnId: string; card: Card } }
   | { type: "UPDATE_CARD"; payload: { id: string; updates: Partial<Card> } }
@@ -58,5 +76,16 @@ export type Action =
         newCardIds?: string[];
       };
     }
+  // Tasks (Phase 2)
+  | { type: "ADD_TASK"; payload: { cardId: string; task: Task } }
+  | {
+      type: "UPDATE_TASK";
+      payload: {
+        id: string;
+        cardId: string;
+        updates: Partial<Omit<Task, "id" | "createdAt">>;
+      };
+    }
+  | { type: "DELETE_TASK"; payload: { taskId: string; cardId: string } }
   // Persistence
   | { type: "LOAD_STATE"; payload: AppState };

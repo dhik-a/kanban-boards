@@ -89,15 +89,8 @@ export function Board() {
     const isActiveColumn = board.columns.some((col) => col.id === activeId);
     const isOverColumn = board.columns.some((col) => col.id === overId);
 
+    // Phase 2: column reordering is disabled — columns are fixed.
     if (isActiveColumn && isOverColumn) {
-      const sourceIndex = board.columns.findIndex((col) => col.id === activeId);
-      const destinationIndex = board.columns.findIndex((col) => col.id === overId);
-      if (sourceIndex !== -1 && destinationIndex !== -1 && sourceIndex !== destinationIndex) {
-        dispatch({
-          type: "REORDER_COLUMNS",
-          payload: { sourceIndex, destinationIndex },
-        });
-      }
       return;
     }
 

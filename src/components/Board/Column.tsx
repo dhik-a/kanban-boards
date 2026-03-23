@@ -67,6 +67,7 @@ export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
           description: "",
           priority: "medium",
           labels: [],
+          taskIds: [],
           createdAt: now,
           updatedAt: now,
         },

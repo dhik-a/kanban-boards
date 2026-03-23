@@ -1,8 +1,9 @@
-import type { AppState, Board, Card } from "../types";
+import type { AppState, Board, Card, Task } from "../types";
 
-// PRD section 3.5 — two distinct localStorage keys for board and cards.
+// localStorage keys — Phase 2 adds kanban_tasks and kanban_schema_version.
 const BOARD_KEY = "kanban_board";
 const CARDS_KEY = "kanban_cards";
+const TASKS_KEY = "kanban_tasks";
 
 /**
  * Reads AppState from localStorage.
@@ -22,19 +23,22 @@ export function loadState(): LoadResult {
   try {
     const rawBoard = localStorage.getItem(BOARD_KEY);
     const rawCards = localStorage.getItem(CARDS_KEY);
+    const rawTasks = localStorage.getItem(TASKS_KEY);
 
     // Nothing stored yet — clean first-time load.
     if (rawBoard === null && rawCards === null) {
       return { ok: false, corrupted: false };
     }
 
-    // If one key exists but not the other, treat as corrupted.
+    // If board or cards key is missing, treat as corrupted.
     if (rawBoard === null || rawCards === null) {
       return { ok: false, corrupted: true };
     }
 
     const board: Board = JSON.parse(rawBoard);
     const cards: Record<string, Card> = JSON.parse(rawCards);
+    // tasks key may be absent in Phase 1 data — default to empty object.
+    const tasks: Record<string, Task> = rawTasks ? JSON.parse(rawTasks) : {};
 
     // Minimal shape validation — catch obviously wrong data without a full schema check.
     if (
@@ -49,7 +53,7 @@ export function loadState(): LoadResult {
       return { ok: false, corrupted: true };
     }
 
-    return { ok: true, state: { board, cards } };
+    return { ok: true, state: { board, cards, tasks } };
   } catch {
     // JSON.parse threw — data is definitely corrupted.
     return { ok: false, corrupted: true };
@@ -68,10 +72,9 @@ export function loadState(): LoadResult {
  * surfacing the error to the user — we do not throw here.
  */
 export function saveState(state: AppState): string | null {
-  // Snapshot the current board value before writing so we can roll it back if
-  // the subsequent cards write fails. prevCards is not needed — if the board
-  // write fails first, localStorage is still consistent.
+  // Snapshot current values before writing so we can roll back on failure.
   const prevBoard = localStorage.getItem(BOARD_KEY);
+  const prevCards = localStorage.getItem(CARDS_KEY);
 
   try {
     localStorage.setItem(BOARD_KEY, JSON.stringify(state.board));
@@ -82,7 +85,7 @@ export function saveState(state: AppState): string | null {
   try {
     localStorage.setItem(CARDS_KEY, JSON.stringify(state.cards));
   } catch {
-    // Roll back the board write so both keys stay in sync.
+    // Roll back the board write.
     try {
       if (prevBoard === null) {
         localStorage.removeItem(BOARD_KEY);
@@ -90,8 +93,29 @@ export function saveState(state: AppState): string | null {
         localStorage.setItem(BOARD_KEY, prevBoard);
       }
     } catch {
-      // If the rollback itself fails there is nothing more we can do.
+      // Rollback failed — nothing more we can do.
     }
+    return "Unable to save changes: storage is full.";
+  }
+
+  try {
+    localStorage.setItem(TASKS_KEY, JSON.stringify(state.tasks));
+  } catch {
+    // Roll back both board and cards writes.
+    try {
+      if (prevBoard === null) {
+        localStorage.removeItem(BOARD_KEY);
+      } else {
+        localStorage.setItem(BOARD_KEY, prevBoard);
+      }
+    } catch { /* ignore */ }
+    try {
+      if (prevCards === null) {
+        localStorage.removeItem(CARDS_KEY);
+      } else {
+        localStorage.setItem(CARDS_KEY, prevCards);
+      }
+    } catch { /* ignore */ }
     return "Unable to save changes: storage is full.";
   }
 

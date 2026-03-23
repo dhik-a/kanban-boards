@@ -7,8 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { v4 as uuidv4 } from "uuid";
-import type { AppState, Action, Board, Column } from "../types";
+import type { AppState, Action, Board } from "../types";
 import { createDefaultState } from "../utils/defaults";
 import { loadState } from "../utils/storage";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
@@ -51,24 +50,9 @@ function boardReducer(state: AppState, action: Action): AppState {
       };
 
     // ── Columns ──────────────────────────────────────────────────────────────
-    case "ADD_COLUMN": {
-      // Mirror the UI-level 10-column cap inside the reducer so the constraint
-      // is enforced regardless of how the action is dispatched (CRITICAL #4).
-      if (state.board.columns.length >= 10) return state;
-      const newColumn: Column = {
-        id: uuidv4(),
-        title: action.payload.title,
-        cardIds: [],
-        color: "#94a3b8", // default slate — user can change via UPDATE_COLUMN
-      };
-      return {
-        ...state,
-        board: withUpdatedAt({
-          ...state.board,
-          columns: [...state.board.columns, newColumn],
-        }),
-      };
-    }
+    // Note: ADD_COLUMN, DELETE_COLUMN, REORDER_COLUMNS removed in Phase 2.
+    // Columns are fixed and non-configurable. UPDATE_COLUMN retained for
+    // internal use but the UI no longer surfaces column mutation controls.
 
     case "UPDATE_COLUMN": {
       const { id, title, color } = action.payload;
@@ -87,40 +71,6 @@ function boardReducer(state: AppState, action: Action): AppState {
       };
     }
 
-    case "DELETE_COLUMN": {
-      const { id } = action.payload;
-      // Enforce minimum 1 column constraint (PRD section 4.2).
-      if (state.board.columns.length <= 1) return state;
-
-      const targetColumn = state.board.columns.find((col) => col.id === id);
-      if (!targetColumn) return state;
-
-      // Remove all cards belonging to the deleted column from normalized storage.
-      const updatedCards = { ...state.cards };
-      for (const cardId of targetColumn.cardIds) {
-        delete updatedCards[cardId];
-      }
-
-      return {
-        board: withUpdatedAt({
-          ...state.board,
-          columns: state.board.columns.filter((col) => col.id !== id),
-        }),
-        cards: updatedCards,
-      };
-    }
-
-    case "REORDER_COLUMNS": {
-      const { sourceIndex, destinationIndex } = action.payload;
-      const columns = [...state.board.columns];
-      const [moved] = columns.splice(sourceIndex, 1);
-      columns.splice(destinationIndex, 0, moved);
-      return {
-        ...state,
-        board: withUpdatedAt({ ...state.board, columns }),
-      };
-    }
-
     // ── Cards ────────────────────────────────────────────────────────────────
     case "ADD_CARD": {
       const { columnId, card } = action.payload;
@@ -130,6 +80,7 @@ function boardReducer(state: AppState, action: Action): AppState {
           : col
       );
       return {
+        ...state,
         board: withUpdatedAt({ ...state.board, columns }),
         cards: { ...state.cards, [card.id]: card },
       };
@@ -160,6 +111,7 @@ function boardReducer(state: AppState, action: Action): AppState {
       const updatedCards = { ...state.cards };
       delete updatedCards[id];
       return {
+        ...state,
         board: withUpdatedAt({ ...state.board, columns }),
         cards: updatedCards,
       };
@@ -203,9 +155,64 @@ function boardReducer(state: AppState, action: Action): AppState {
       };
     }
 
+    // ── Tasks (Phase 2) ──────────────────────────────────────────────────────
+    case "ADD_TASK": {
+      const { cardId, task } = action.payload;
+      const existingCard = state.cards[cardId];
+      if (!existingCard) return state;
+      return {
+        ...state,
+        tasks: { ...state.tasks, [task.id]: task },
+        cards: {
+          ...state.cards,
+          [cardId]: {
+            ...existingCard,
+            taskIds: [...existingCard.taskIds, task.id],
+            updatedAt: now,
+          },
+        },
+        board: withUpdatedAt(state.board),
+      };
+    }
+
+    case "UPDATE_TASK": {
+      const { id, updates } = action.payload;
+      const existingTask = state.tasks[id];
+      if (!existingTask) return state;
+      return {
+        ...state,
+        tasks: {
+          ...state.tasks,
+          [id]: { ...existingTask, ...updates, updatedAt: now },
+        },
+        board: withUpdatedAt(state.board),
+      };
+    }
+
+    case "DELETE_TASK": {
+      const { taskId, cardId } = action.payload;
+      const existingCard = state.cards[cardId];
+      if (!existingCard) return state;
+      const updatedTasks = { ...state.tasks };
+      delete updatedTasks[taskId];
+      return {
+        ...state,
+        tasks: updatedTasks,
+        cards: {
+          ...state.cards,
+          [cardId]: {
+            ...existingCard,
+            taskIds: existingCard.taskIds.filter((id) => id !== taskId),
+            updatedAt: now,
+          },
+        },
+        board: withUpdatedAt(state.board),
+      };
+    }
+
     default: {
       // Exhaustiveness check — TypeScript will error here if a new Action
-      // variant is added to the union without a corresponding case (MAJOR #7).
+      // variant is added to the union without a corresponding case.
       const _exhaustive: never = action;
       return _exhaustive;
     }

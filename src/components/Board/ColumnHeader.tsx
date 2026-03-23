@@ -72,7 +72,8 @@ interface ColumnHeaderProps {
  */
 export function ColumnHeader({ column, canDelete, dragHandleProps }: ColumnHeaderProps) {
   const { dispatch } = useBoardContext();
-  const { addToast } = useToastContext();
+  // Phase 2: useToastContext retained for future use; addToast removed with DELETE_COLUMN.
+  useToastContext();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(column.title);
   const [showMenu, setShowMenu] = useState(false);
@@ -188,10 +189,9 @@ export function ColumnHeader({ column, canDelete, dragHandleProps }: ColumnHeade
   };
 
   const handleDeleteConfirm = () => {
-    const columnTitle = column.title;
-    dispatch({ type: "DELETE_COLUMN", payload: { id: column.id } });
+    // Phase 2: column deletion is disabled — columns are fixed per PRD section 3.1.
+    // This handler is retained as a no-op; the delete UI will be removed in TICKET-P2-004.
     setShowDeleteConfirm(false);
-    addToast(`Column "${columnTitle}" deleted.`, "info");
   };
 
   const handleColorSelect = (hex: string) => {
