@@ -109,11 +109,21 @@ function boardReducer(state: AppState, action: Action): AppState {
           : col
       );
       const updatedCards = { ...state.cards };
+      // Cascade-delete all tasks belonging to this card before removing it
+      // so no orphaned entries remain in state.tasks (AC-4).
+      const updatedTasks = { ...state.tasks };
+      const cardBeingDeleted = state.cards[id];
+      if (cardBeingDeleted) {
+        for (const taskId of cardBeingDeleted.taskIds) {
+          delete updatedTasks[taskId];
+        }
+      }
       delete updatedCards[id];
       return {
         ...state,
         board: withUpdatedAt({ ...state.board, columns }),
         cards: updatedCards,
+        tasks: updatedTasks,
       };
     }
 
@@ -176,21 +186,30 @@ function boardReducer(state: AppState, action: Action): AppState {
     }
 
     case "UPDATE_TASK": {
-      const { id, updates } = action.payload;
+      const { id, cardId, updates } = action.payload;
       const existingTask = state.tasks[id];
       if (!existingTask) return state;
+      const existingCard = state.cards[cardId];
       return {
         ...state,
         tasks: {
           ...state.tasks,
           [id]: { ...existingTask, ...updates, updatedAt: now },
         },
+        cards: existingCard
+          ? {
+              ...state.cards,
+              [cardId]: { ...existingCard, updatedAt: now },
+            }
+          : state.cards,
         board: withUpdatedAt(state.board),
       };
     }
 
     case "DELETE_TASK": {
       const { taskId, cardId } = action.payload;
+      // No-op if the task does not exist (AC-3).
+      if (!state.tasks[taskId]) return state;
       const existingCard = state.cards[cardId];
       if (!existingCard) return state;
       const updatedTasks = { ...state.tasks };
