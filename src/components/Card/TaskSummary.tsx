@@ -48,7 +48,7 @@ export function TaskSummary({ taskIds }: TaskSummaryProps) {
   return (
     <div className="mt-2" aria-label={`Task progress: ${done} of ${total} tasks done`}>
       {/* "X/Y tasks" label */}
-      <p className="text-xs text-slate-400 dark:text-slate-400 mb-1 tabular-nums">
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-1 tabular-nums">
         {done}/{total} tasks
       </p>
 
