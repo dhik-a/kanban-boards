@@ -100,7 +100,7 @@ export function TaskSection({ cardId }: TaskSectionProps) {
     <section aria-labelledby="tasks-section-label">
       <h3
         id="tasks-section-label"
-        className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2"
+        className="text-xs font-semibold text-slate-500 dark:text-slate-500 uppercase tracking-wide mb-2"
       >
         Tasks
         {hasTasks && (
