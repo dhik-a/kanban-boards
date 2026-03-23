@@ -4,6 +4,8 @@ import type { AppState, Board, Card, Task } from "../types";
 const BOARD_KEY = "kanban_board";
 const CARDS_KEY = "kanban_cards";
 const TASKS_KEY = "kanban_tasks";
+export const SCHEMA_VERSION_KEY = "kanban_schema_version";
+export const SCHEMA_VERSION = 2;
 
 /**
  * Reads AppState from localStorage.
@@ -117,6 +119,17 @@ export function saveState(state: AppState): string | null {
       }
     } catch { /* ignore */ }
     return "Unable to save changes: storage is full.";
+  }
+
+  // Write schema version after all state keys have been persisted successfully.
+  // This ensures the version flag is always in sync with the actual stored data
+  // and is never set if the board/cards/tasks writes failed (AC-3).
+  try {
+    localStorage.setItem(SCHEMA_VERSION_KEY, String(SCHEMA_VERSION));
+  } catch {
+    // Schema version write failure is non-fatal — state is already persisted.
+    // On next load the schema check will treat this as a fresh install and
+    // overwrite with defaults, but that is safer than silently ignoring it.
   }
 
   return null;

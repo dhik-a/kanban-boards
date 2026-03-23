@@ -9,21 +9,40 @@ import {
 } from "react";
 import type { AppState, Action, Board } from "../types";
 import { createDefaultState } from "../utils/defaults";
-import { loadState } from "../utils/storage";
+import { loadState, SCHEMA_VERSION_KEY, SCHEMA_VERSION } from "../utils/storage";
 import { useDebouncedSave } from "../hooks/useDebouncedSave";
 
 // ─── Initial state ────────────────────────────────────────────────────────────
 
 /**
  * Resolves the initial AppState from localStorage.
+ *
+ * Schema version check (AC-1):
+ *   - If kanban_schema_version is absent or < 2 → fresh install (AC-2).
+ *     Phase 1 keys (kanban_board, kanban_cards) are intentionally not read.
+ *   - If kanban_schema_version === 2 → load persisted state normally (AC-4).
+ *
  * Returns the state AND a flag indicating whether data was corrupted on load
- * (used to show the dismissible warning banner — Ticket Scenario 7).
+ * (used to show the dismissible warning banner — AC-5).
  */
 function resolveInitialState(): { state: AppState; wasCorrupted: boolean } {
+  const rawVersion = localStorage.getItem(SCHEMA_VERSION_KEY);
+  const schemaVersion = rawVersion !== null ? Number(rawVersion) : 0;
+
+  // Fresh install path: version absent or below current schema version (AC-1, AC-2).
+  // Phase 1 keys are not read — their presence is irrelevant (AC-6).
+  if (schemaVersion < SCHEMA_VERSION) {
+    return { state: createDefaultState(), wasCorrupted: false };
+  }
+
+  // Normal load path: schema version matches, attempt to restore persisted state (AC-4).
   const result = loadState();
   if (result.ok) {
     return { state: result.state, wasCorrupted: false };
   }
+
+  // loadState failed — data is corrupted despite a valid schema version flag.
+  // Fall back to defaults and surface a warning (AC-5).
   return {
     state: createDefaultState(),
     wasCorrupted: result.corrupted,
@@ -273,7 +292,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [corruptionWarning, setCorruptionWarning] = useState<string | null>(
     wasCorrupted
-      ? "Saved data could not be loaded and has been reset to the default board."
+      ? "Your saved board data was corrupted. Starting fresh."
       : null
   );
 
