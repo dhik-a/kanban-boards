@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Trash2, Plus, X } from "lucide-react";
 import { Modal } from "../UI/Modal";
 import { ConfirmDialog } from "../UI/ConfirmDialog";
+import { TaskSection } from "../Task";
 import { useBoardContext } from "../../context/BoardContext";
 import { useToastContext } from "../../context/ToastContext";
 import { getLabelColor } from "../../utils/labelColor";
@@ -435,6 +436,9 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
               aria-label="Card description"
             />
           </div>
+
+          {/* Tasks */}
+          <TaskSection cardId={cardId} />
 
           {/* Created date */}
           <div>
