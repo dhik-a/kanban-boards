@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Trash2, Plus, X } from "lucide-react";
+import { Trash2, Plus, X, AlertCircle } from "lucide-react";
 import { Modal } from "../UI/Modal";
 import { ConfirmDialog } from "../UI/ConfirmDialog";
 import { useBoardContext } from "../../context/BoardContext";
 import { useToastContext } from "../../context/ToastContext";
 import { getLabelColor } from "../../utils/labelColor";
 import type { Card } from "../../types";
+
+type DraftCard = Pick<Card, "title" | "description" | "priority" | "labels">;
 
 interface CardDetailProps {
   cardId: string | null;
@@ -28,6 +30,15 @@ const PRIORITY_COLOR: Record<Card["priority"], string> = {
 const MAX_DESCRIPTION = 2000;
 const MAX_LABELS = 5;
 const MAX_LABEL_LENGTH = 20;
+
+/**
+ * Compare two label arrays for equality (order-insensitive).
+ */
+function labelsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sorted = (arr: string[]) => [...arr].sort();
+  return sorted(a).every((v, i) => v === sorted(b)[i]);
+}
 
 /**
  * Formats an ISO date string.
@@ -208,32 +219,119 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
   const { state, dispatch } = useBoardContext();
   const { addToast } = useToastContext();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const card = cardId ? state.cards[cardId] : null;
   const isOpen = card !== null && card !== undefined;
 
-  // Local edit states — initialized from card on first render.
-  const [titleValue, setTitleValue] = useState(card?.title ?? "");
-  const [descValue, setDescValue] = useState(card?.description ?? "");
+  // Draft state — buffered edits not yet saved.
+  const [draft, setDraft] = useState<DraftCard>(() => ({
+    title: card?.title ?? "",
+    description: card?.description ?? "",
+    priority: card?.priority ?? "medium",
+    labels: card?.labels ?? [],
+  }));
 
-  // Reinitialize local state whenever the target card changes.
+  // Reinitialize draft whenever the target card changes (e.g., user selects different card).
+  // Same pattern as original code's titleValue/descValue initialization (see BUG-4 comment below).
+  // Disabling the linter rule because this intentional state sync on card change is required.
+  // eslint-disable-next-line no-console, react-hooks/exhaustive-deps
   useEffect(() => {
     if (card) {
-      setTitleValue(card.title);
-      setDescValue(card.description);
+      setDraft({
+        title: card.title,
+        description: card.description,
+        priority: card.priority,
+        labels: card.labels,
+      });
+      setTitleError(null);
+      // Reset dialog states when card changes or modal closes.
+      setShowCloseConfirm(false);
+      setShowDiscardConfirm(false);
     }
-  }, [cardId]); // intentionally only [cardId]
+  }, [cardId]); // intentionally only [cardId]; card is derived from cardId
 
-  // updateCard must be declared unconditionally (before the early return)
-  // to comply with React's Rules of Hooks — previously placed after the guard,
-  // which caused the blank-screen crash (BUG-4).
-  const updateCard = useCallback(
-    (updates: Partial<Card>) => {
-      if (!cardId) return;
-      dispatch({ type: "UPDATE_CARD", payload: { id: cardId, updates } });
-    },
-    [cardId, dispatch]
-  );
+  // Dirty tracking: card is dirty if any buffered field differs from saved card.
+  const isDirty =
+    draft.title.trim() !== card?.title ||
+    draft.description !== card?.description ||
+    draft.priority !== card?.priority ||
+    !labelsEqual(draft.labels, card?.labels ?? []);
+
+  // Submit handler: validate and dispatch UPDATE_CARD with all buffered fields.
+  const handleSubmit = useCallback(() => {
+    const trimmedTitle = draft.title.trim();
+    if (!trimmedTitle) {
+      setTitleError("Title is required");
+      titleInputRef.current?.focus();
+      return;
+    }
+
+    if (!cardId) return;
+
+    dispatch({
+      type: "UPDATE_CARD",
+      payload: {
+        id: cardId,
+        updates: {
+          title: trimmedTitle,
+          description: draft.description,
+          priority: draft.priority,
+          labels: draft.labels,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    setTitleError(null);
+    addToast("Card saved.", "success");
+    onClose();
+  }, [draft, cardId, dispatch, addToast, onClose]);
+
+  // Discard handler: reset draft to current card state, with confirmation if dirty.
+  const handleDiscard = useCallback(() => {
+    if (!isDirty) {
+      // No changes; just reset (no-op in practice).
+      if (card) {
+        setDraft({
+          title: card.title,
+          description: card.description,
+          priority: card.priority,
+          labels: card.labels,
+        });
+      }
+      return;
+    }
+    // Show confirmation before discarding.
+    setShowDiscardConfirm(true);
+  }, [isDirty, card]);
+
+  // Confirm discard: reset draft, close dialog, and close modal.
+  const handleConfirmDiscard = useCallback(() => {
+    if (card) {
+      setDraft({
+        title: card.title,
+        description: card.description,
+        priority: card.priority,
+        labels: card.labels,
+      });
+    }
+    setShowDiscardConfirm(false);
+    setTitleError(null);
+    onClose();
+  }, [card, onClose]);
+
+  // Wrapped onClose: check for dirty state before closing.
+  const handleModalClose = useCallback(() => {
+    if (isDirty) {
+      setShowCloseConfirm(true);
+      return;
+    }
+    onClose();
+  }, [isDirty, onClose]);
 
   // Derive the card's current column directly from board state so the status
   // selector stays accurate after the user changes it (the columnId prop from
@@ -248,36 +346,26 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
     return null;
   }
 
-  const handleTitleBlur = () => {
-    const trimmed = titleValue.trim();
-    if (!trimmed) {
-      setTitleValue(card.title);
-      return;
-    }
-    if (trimmed !== card.title) {
-      updateCard({ title: trimmed });
-    }
+  // Field handlers update draft only (no immediate save).
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDraft((d) => ({ ...d, title: e.target.value }));
+    setTitleError(null);
   };
 
-  const handleDescBlur = () => {
-    if (descValue !== card.description) {
-      updateCard({ description: descValue });
-    }
+  const handleDescChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDraft((d) => ({ ...d, description: e.target.value }));
   };
 
-  const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value as Card["priority"];
-    updateCard({ priority: value });
+  const handlePriorityChange = (priority: Card["priority"]) => {
+    setDraft((d) => ({ ...d, priority }));
   };
 
   const handleAddLabel = (label: string) => {
-    const updated = [...card.labels, label];
-    updateCard({ labels: updated });
+    setDraft((d) => ({ ...d, labels: [...d.labels, label] }));
   };
 
   const handleRemoveLabel = (label: string) => {
-    const updated = card.labels.filter((l) => l !== label);
-    updateCard({ labels: updated });
+    setDraft((d) => ({ ...d, labels: d.labels.filter((l) => l !== label) }));
   };
 
   const handleDeleteConfirm = () => {
@@ -290,30 +378,54 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
     addToast(`Card "${cardTitle}" deleted.`, "info");
   };
 
-  const descRemaining = MAX_DESCRIPTION - descValue.length;
+  const descRemaining = MAX_DESCRIPTION - draft.description.length;
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title={card.title}>
+      <Modal isOpen={isOpen} onClose={handleModalClose} title={card.title}>
         <div className="space-y-5">
-          {/* Title */}
+          {/* Title with unsaved indicator */}
           <div>
-            <label
-              htmlFor="card-title"
-              className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5"
-            >
-              Title
-            </label>
+            <div className="flex items-center gap-2 mb-1.5">
+              <label
+                htmlFor="card-title"
+                className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+              >
+                Title
+              </label>
+              {isDirty && (
+                <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                  <AlertCircle size={14} aria-hidden="true" />
+                  Unsaved changes
+                </span>
+              )}
+            </div>
             <input
+              ref={titleInputRef}
               id="card-title"
               type="text"
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onBlur={handleTitleBlur}
+              value={draft.title}
+              onChange={handleTitleChange}
               maxLength={100}
-              className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-600 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+              className={[
+                "w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-slate-600 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition",
+                titleError
+                  ? "border-red-400 dark:border-red-500"
+                  : "border-slate-300 dark:border-slate-500",
+              ].join(" ")}
               aria-label="Card title"
+              aria-invalid={titleError ? "true" : undefined}
+              aria-describedby={titleError ? "title-error" : undefined}
             />
+            {titleError && (
+              <p
+                id="title-error"
+                role="alert"
+                className="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {titleError}
+              </p>
+            )}
           </div>
 
           {/* Priority */}
@@ -329,11 +441,11 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => updateCard({ priority: opt.value })}
-                  aria-pressed={card.priority === opt.value}
+                  onClick={() => handlePriorityChange(opt.value)}
+                  aria-pressed={draft.priority === opt.value}
                   className={[
                     "flex-1 py-1.5 text-sm font-medium rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
-                    card.priority === opt.value
+                    draft.priority === opt.value
                       ? PRIORITY_COLOR[opt.value]
                       : "text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-600 border-slate-300 dark:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-500",
                   ].join(" ")}
@@ -342,20 +454,6 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
                 </button>
               ))}
             </div>
-            {/* Hidden select for accessibility / form semantics */}
-            <select
-              id="card-priority"
-              value={card.priority}
-              onChange={handlePriorityChange}
-              className="sr-only"
-              aria-label="Card priority"
-            >
-              {PRIORITY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Status (column) selector — TICKET-013 */}
@@ -401,7 +499,7 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
 
           {/* Labels */}
           <LabelsSection
-            labels={card.labels}
+            labels={draft.labels}
             onAdd={handleAddLabel}
             onRemove={handleRemoveLabel}
           />
@@ -425,9 +523,8 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
             </div>
             <textarea
               id="card-description"
-              value={descValue}
-              onChange={(e) => setDescValue(e.target.value)}
-              onBlur={handleDescBlur}
+              value={draft.description}
+              onChange={handleDescChange}
               maxLength={MAX_DESCRIPTION}
               rows={5}
               placeholder="Add a description..."
@@ -444,6 +541,31 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
             <p className="text-sm text-slate-600 dark:text-slate-300">
               {formatCreatedAt(card.createdAt)}
             </p>
+          </div>
+
+          {/* Save and Discard buttons */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!isDirty}
+              className={[
+                "flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0",
+                isDirty
+                  ? "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-600"
+                  : "bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed",
+              ].join(" ")}
+              aria-label={isDirty ? "Save changes" : "No unsaved changes"}
+            >
+              Save changes
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscard}
+              className="flex-1 py-2.5 text-sm font-medium rounded-lg border border-slate-300 dark:border-slate-500 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-600 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-600"
+            >
+              Discard
+            </button>
           </div>
 
           {/* Divider */}
@@ -471,6 +593,26 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setShowDeleteConfirm(false)}
         variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="Discard unsaved changes?"
+        message="Your edits will be lost and cannot be recovered."
+        confirmLabel="Discard"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmDiscard}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={showCloseConfirm}
+        title="Close with unsaved changes?"
+        message="You have unsaved changes. They will be lost if you close without saving."
+        confirmLabel="Close without saving"
+        cancelLabel="Cancel"
+        onConfirm={onClose}
+        onCancel={() => setShowCloseConfirm(false)}
       />
     </>
   );
