@@ -128,10 +128,12 @@ export function Header() {
     searchQuery,
     priorityFilter,
     labelFilter,
+    projectFilter,
     isFiltering,
     setSearchQuery,
     setPriorityFilter,
     setLabelFilter,
+    setProjectFilter,
     clearFilters,
   } = useFilterContext();
 
@@ -145,6 +147,21 @@ export function Header() {
       a.toLowerCase().localeCompare(b.toLowerCase())
     );
   }, [boardState.cards]);
+
+  // Collect all projects, sorted alphabetically by name.
+  const allProjects = useMemo(() => {
+    return Object.values(boardState.projects).sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+    );
+  }, [boardState.projects]);
+
+  // Auto-clear stale project filter if the selected project no longer exists
+  // (e.g. after a DELETE_PROJECT dispatch).
+  useEffect(() => {
+    if (projectFilter !== null && !boardState.projects[projectFilter]) {
+      setProjectFilter(null);
+    }
+  }, [projectFilter, boardState.projects, setProjectFilter]);
 
   // Local input value for debounced search.
   const [localSearch, setLocalSearch] = useState(searchQuery);
@@ -277,6 +294,23 @@ export function Header() {
                 );
               })}
             </div>
+          )}
+
+          {/* Project filter select — only rendered when at least one project exists */}
+          {allProjects.length > 0 && (
+            <select
+              value={projectFilter ?? ""}
+              onChange={(e) => setProjectFilter(e.target.value ? e.target.value : null)}
+              aria-label="Filter by project"
+              className="px-2.5 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            >
+              <option value="">All projects</option>
+              {allProjects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
           )}
 
           {/* Clear all filters */}

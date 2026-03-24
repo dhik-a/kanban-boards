@@ -21,8 +21,15 @@ export interface Card {
   description: string;
   priority: "low" | "medium" | "high";
   labels: string[];
+  projectId: string | null;
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  createdAt: string; // ISO 8601
 }
 
 // Normalized state: board structure lives separately from card content so that
@@ -30,6 +37,7 @@ export interface Card {
 export interface AppState {
   board: Board;
   cards: Record<string, Card>;
+  projects: Record<string, Project>;
 }
 
 // ─── Reducer action union — PRD section 6.1 ──────────────────────────────────
@@ -58,5 +66,8 @@ export type Action =
         newCardIds?: string[];
       };
     }
+  // Projects
+  | { type: "ADD_PROJECT"; payload: Project }
+  | { type: "DELETE_PROJECT"; payload: { id: string } }
   // Persistence
   | { type: "LOAD_STATE"; payload: AppState };

@@ -65,5 +65,6 @@ export function createDefaultState(): AppState {
       updatedAt: now,
     },
     cards: {},
+    projects: {},
   };
 }

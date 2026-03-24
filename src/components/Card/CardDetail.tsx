@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Trash2, Plus, X, AlertCircle } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 import { Modal } from "../UI/Modal";
 import { ConfirmDialog } from "../UI/ConfirmDialog";
 import { useBoardContext } from "../../context/BoardContext";
@@ -7,7 +8,9 @@ import { useToastContext } from "../../context/ToastContext";
 import { getLabelColor } from "../../utils/labelColor";
 import type { Card } from "../../types";
 
-type DraftCard = Pick<Card, "title" | "description" | "priority" | "labels">;
+type DraftCard = Pick<Card, "title" | "description" | "priority" | "labels"> & {
+  projectId: string | null;
+};
 
 interface CardDetailProps {
   cardId: string | null;
@@ -81,6 +84,13 @@ function LabelsSection({ labels, onAdd, onRemove }: LabelsSectionProps) {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up pending error timer on unmount to prevent stale setState.
+  useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
+  }, []);
 
   const showError = (msg: string) => {
     setError(msg);
@@ -204,6 +214,175 @@ function LabelsSection({ labels, onAdd, onRemove }: LabelsSectionProps) {
 
 // ─── CardDetail ───────────────────────────────────────────────────────────────
 
+// ─── Project section ──────────────────────────────────────────────────────
+
+interface ProjectSectionProps {
+  projectId: string | null;
+  onSelectProject: (id: string | null) => void;
+  onAddProject: (name: string) => void;
+}
+
+function ProjectSection({ projectId, onSelectProject, onAddProject }: ProjectSectionProps) {
+  const { state } = useBoardContext();
+  const [isAddingProject, setIsAddingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Focus input when add-project form opens (including re-opens after cancel).
+  useEffect(() => {
+    if (isAddingProject) {
+      inputRef.current?.focus();
+    }
+  }, [isAddingProject]);
+
+  // Clean up pending error timer on unmount to prevent stale setState.
+  useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
+  }, []);
+
+  const showError = (msg: string) => {
+    setError(msg);
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    errorTimerRef.current = setTimeout(() => setError(null), 3000);
+  };
+
+  const tryAddProject = () => {
+    const trimmed = newProjectName.trim();
+    if (!trimmed) {
+      showError("Project name is required.");
+      return;
+    }
+
+    // Case-insensitive duplicate check
+    const isDuplicate = Object.values(state.projects).some(
+      (p) => p.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isDuplicate) {
+      showError("A project with this name already exists.");
+      return;
+    }
+
+    onAddProject(trimmed);
+    setNewProjectName("");
+    setError(null);
+    setIsAddingProject(false);
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      tryAddProject();
+    } else if (e.key === "Escape") {
+      setIsAddingProject(false);
+      setNewProjectName("");
+      setError(null);
+    }
+  };
+
+  const sortedProjects = useMemo(() => {
+    return Object.values(state.projects).sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+    );
+  }, [state.projects]);
+
+  return (
+    <div>
+      <label
+        htmlFor="card-project"
+        className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5"
+      >
+        Project
+      </label>
+      <div className="flex gap-2 items-start">
+        <select
+          id="card-project"
+          value={projectId ?? ""}
+          onChange={(e) => onSelectProject(e.target.value ? e.target.value : null)}
+          className="flex-1 rounded-lg border border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-600 text-sm text-slate-700 dark:text-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+          aria-label="Select project for this card"
+        >
+          <option value="">No project</option>
+          {sortedProjects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+        {!isAddingProject && (
+          <button
+            type="button"
+            onClick={() => setIsAddingProject(true)}
+            aria-label="Add new project"
+            className="p-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors flex-shrink-0"
+          >
+            <Plus size={16} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {isAddingProject && (
+        <div className="flex gap-2 mt-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+            onKeyDown={handleKeyDown}
+            maxLength={50}
+            placeholder="Project name..."
+            aria-label="New project name — press Enter or click Add"
+            aria-invalid={error ? "true" : undefined}
+            aria-describedby={error ? "project-error" : undefined}
+            className={[
+              "flex-1 px-3 py-1.5 text-sm border rounded-lg bg-white dark:bg-slate-600 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400 transition",
+              error
+                ? "border-red-400 dark:border-red-500"
+                : "border-slate-300 dark:border-slate-500",
+            ].join(" ")}
+          />
+          <button
+            type="button"
+            onClick={tryAddProject}
+            aria-label="Add project"
+            className="px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors text-sm font-medium"
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsAddingProject(false);
+              setNewProjectName("");
+              setError(null);
+            }}
+            aria-label="Cancel adding project"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-500 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors text-sm font-medium"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <p
+          id="project-error"
+          role="alert"
+          className="mt-1 text-xs text-red-600 dark:text-red-400"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── CardDetail ───────────────────────────────────────────────────────────
+
 /**
  * Card detail modal.
  *
@@ -233,6 +412,7 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
     description: card?.description ?? "",
     priority: card?.priority ?? "medium",
     labels: card?.labels ?? [],
+    projectId: card?.projectId ?? null,
   }));
 
   // Reinitialize draft whenever the target card changes (e.g., user selects different card).
@@ -246,6 +426,7 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
         description: card.description,
         priority: card.priority,
         labels: card.labels,
+        projectId: card.projectId ?? null,
       });
       setTitleError(null);
       // Reset dialog states when card changes or modal closes.
@@ -259,6 +440,7 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
     draft.title.trim() !== card?.title ||
     draft.description !== card?.description ||
     draft.priority !== card?.priority ||
+    draft.projectId !== (card?.projectId ?? null) ||
     !labelsEqual(draft.labels, card?.labels ?? []);
 
   // Submit handler: validate and dispatch UPDATE_CARD with all buffered fields.
@@ -281,6 +463,7 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
           description: draft.description,
           priority: draft.priority,
           labels: draft.labels,
+          projectId: draft.projectId,
           updatedAt: new Date().toISOString(),
         },
       },
@@ -301,6 +484,7 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
           description: card.description,
           priority: card.priority,
           labels: card.labels,
+          projectId: card.projectId ?? null,
         });
       }
       return;
@@ -317,6 +501,7 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
         description: card.description,
         priority: card.priority,
         labels: card.labels,
+        projectId: card.projectId ?? null,
       });
     }
     setShowDiscardConfirm(false);
@@ -366,6 +551,22 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
 
   const handleRemoveLabel = (label: string) => {
     setDraft((d) => ({ ...d, labels: d.labels.filter((l) => l !== label) }));
+  };
+
+  const handleSelectProject = (projectId: string | null) => {
+    setDraft((d) => ({ ...d, projectId }));
+  };
+
+  const handleAddProject = (name: string) => {
+    const newProject = {
+      id: uuidv4(),
+      name,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: "ADD_PROJECT", payload: newProject });
+    // Auto-assign the new project to the current card so the user doesn't
+    // have to manually re-select after creating it.
+    setDraft((d) => ({ ...d, projectId: newProject.id }));
   };
 
   const handleDeleteConfirm = () => {
@@ -455,6 +656,13 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
               ))}
             </div>
           </div>
+
+          {/* Project */}
+          <ProjectSection
+            projectId={draft.projectId}
+            onSelectProject={handleSelectProject}
+            onAddProject={handleAddProject}
+          />
 
           {/* Status (column) selector — TICKET-013 */}
           <div>

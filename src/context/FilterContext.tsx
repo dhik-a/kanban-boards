@@ -15,11 +15,15 @@ interface FilterContextValue {
   searchQuery: string;
   priorityFilter: PriorityFilter;
   labelFilter: string | null;
-  /** True when any filter or search is active. DnD must be disabled when true. */
+  projectFilter: string | null;
+  /** True when any filter or search is active (including project filter). */
   isFiltering: boolean;
+  /** True when a hard filter (search/priority/label) is active. DnD and Add Card are disabled. */
+  isHardFiltering: boolean;
   setSearchQuery: (query: string) => void;
   setPriorityFilter: (priority: PriorityFilter) => void;
   setLabelFilter: (label: string | null) => void;
+  setProjectFilter: (id: string | null) => void;
   clearFilters: () => void;
 }
 
@@ -33,6 +37,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const [searchQuery, setSearchQueryRaw] = useState("");
   const [priorityFilter, setPriorityFilterRaw] = useState<PriorityFilter>(null);
   const [labelFilter, setLabelFilterRaw] = useState<string | null>(null);
+  const [projectFilter, setProjectFilterRaw] = useState<string | null>(null);
 
   // Setter wrappers are intentionally NOT wrapped in useCallback.
   // useCallback would give them stable references, but the setters are never
@@ -41,10 +46,12 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const setSearchQuery = (query: string) => setSearchQueryRaw(query);
   const setPriorityFilter = (priority: PriorityFilter) => setPriorityFilterRaw(priority);
   const setLabelFilter = (label: string | null) => setLabelFilterRaw(label);
+  const setProjectFilter = (id: string | null) => setProjectFilterRaw(id);
   const clearFilters = () => {
     setSearchQueryRaw("");
     setPriorityFilterRaw(null);
     setLabelFilterRaw(null);
+    setProjectFilterRaw(null);
   };
 
   // Value object is memoised on state values only. isFiltering is derived
@@ -54,17 +61,24 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   // acceptable — consumers that need stable setters can wrap them locally
   // with useCallback if required.
   const value = useMemo<FilterContextValue>(
-    () => ({
-      searchQuery,
-      priorityFilter,
-      labelFilter,
-      isFiltering: searchQuery.trim() !== "" || priorityFilter !== null || labelFilter !== null,
-      setSearchQuery,
-      setPriorityFilter,
-      setLabelFilter,
-      clearFilters,
-    }),
-    [searchQuery, priorityFilter, labelFilter]
+    () => {
+      const isHardFiltering =
+        searchQuery.trim() !== "" || priorityFilter !== null || labelFilter !== null;
+      return {
+        searchQuery,
+        priorityFilter,
+        labelFilter,
+        projectFilter,
+        isFiltering: isHardFiltering || projectFilter !== null,
+        isHardFiltering,
+        setSearchQuery,
+        setPriorityFilter,
+        setLabelFilter,
+        setProjectFilter,
+        clearFilters,
+      };
+    },
+    [searchQuery, priorityFilter, labelFilter, projectFilter]
   );
 
   return <FilterContext.Provider value={value}>{children}</FilterContext.Provider>;

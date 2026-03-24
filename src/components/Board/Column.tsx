@@ -32,7 +32,7 @@ interface ColumnProps {
  */
 export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
   const { state, dispatch } = useBoardContext();
-  const { searchQuery, priorityFilter, labelFilter, isFiltering } = useFilterContext();
+  const { searchQuery, priorityFilter, labelFilter, projectFilter, isHardFiltering } = useFilterContext();
 
   // Column sortable (for column reordering in Board).
   const {
@@ -67,6 +67,8 @@ export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
           description: "",
           priority: "medium",
           labels: [],
+          // Auto-assign to active project filter if one is set.
+          projectId: projectFilter ?? null,
           createdAt: now,
           updatedAt: now,
         },
@@ -84,10 +86,20 @@ export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
   );
 
   // Visible cards: apply search/filter when active.
+  // Note: projectFilter is always applied (not conditional like search/priority/label).
   const visibleCards = useMemo(() => {
-    if (!isFiltering) return allCards;
+    // First, always filter by project.
+    // Use ?? null to handle backward-compat: old cards have undefined projectId.
+    const allCardsFiltered = allCards.filter((card) => {
+      const matchesProject = projectFilter === null || (card.projectId ?? null) === projectFilter;
+      return matchesProject;
+    });
+
+    // Then apply search/priority/label filters if active.
+    if (!isHardFiltering) return allCardsFiltered;
+
     const query = searchQuery.trim().toLowerCase();
-    return allCards.filter((card) => {
+    return allCardsFiltered.filter((card) => {
       const matchesSearch = query === "" || card.title.toLowerCase().includes(query);
       const matchesPriority = priorityFilter === null || card.priority === priorityFilter;
       const matchesLabel =
@@ -95,7 +107,7 @@ export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
         card.labels.some((l) => l.toLowerCase() === labelFilter.toLowerCase());
       return matchesSearch && matchesPriority && matchesLabel;
     });
-  }, [allCards, isFiltering, searchQuery, priorityFilter, labelFilter]);
+  }, [allCards, isHardFiltering, searchQuery, priorityFilter, labelFilter, projectFilter]);
 
   // dragHandleProps — passed to ColumnHeader so the handle is on the grip icon.
   const dragHandleProps = {
@@ -129,11 +141,21 @@ export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
       <div ref={setDropRef} className="flex-1">
         {visibleCards.length === 0 ? (
           <div
-            aria-label={isFiltering ? "No matching cards" : "No cards in this column"}
+            aria-label={
+              isHardFiltering
+                ? "No matching cards"
+                : projectFilter !== null
+                  ? "No cards in this project"
+                  : "No cards in this column"
+            }
             className="py-8 flex items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-lg"
           >
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              {isFiltering ? "No matching cards" : "No cards yet"}
+              {isHardFiltering
+                ? "No matching cards"
+                : projectFilter !== null
+                  ? "No cards in this project"
+                  : "No cards yet"}
             </p>
           </div>
         ) : (
@@ -147,7 +169,7 @@ export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
                   key={card.id}
                   card={card}
                   onOpenDetail={(cardId) => onOpenCardDetail(cardId, column.id)}
-                  isDragDisabled={isFiltering}
+                  isDragDisabled={isHardFiltering}
                 />
               ))}
             </ul>
@@ -155,8 +177,9 @@ export function Column({ column, canDelete, onOpenCardDetail }: ColumnProps) {
         )}
       </div>
 
-      {/* Only show Add Card when not filtering — avoids confusion about where a new card lands. */}
-      {!isFiltering && <AddCard onAddCard={handleAddCard} />}
+      {/* Hide Add Card during hard filtering (search/priority/label) to avoid confusion.
+          Visible during project-only filtering — new cards are auto-assigned to that project. */}
+      {!isHardFiltering && <AddCard onAddCard={handleAddCard} />}
     </section>
   );
 }
