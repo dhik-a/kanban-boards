@@ -134,6 +134,7 @@ export function TaskItem({ task, cardId }: TaskItemProps) {
       commitEdit();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation(); // Prevent Escape from bubbling to the Modal's Escape listener
       cancelEdit();
     }
   };
@@ -220,11 +221,11 @@ export function TaskItem({ task, cardId }: TaskItemProps) {
           type="button"
           onClick={() => setShowDeleteConfirm(true)}
           aria-label={`Delete task "${task.title}"`}
+          title="Delete task"
           className={[
             "shrink-0 p-1 rounded-md text-slate-400 dark:text-slate-500",
             "hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30",
-            "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-            "transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500",
+            "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500",
           ].join(" ")}
         >
           <Trash2 size={14} aria-hidden="true" />

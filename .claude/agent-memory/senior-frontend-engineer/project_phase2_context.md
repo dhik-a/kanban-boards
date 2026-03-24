@@ -23,5 +23,13 @@ Phase 2 introduces Tasks nested inside Cards, a fixed 5-column board, and task-s
 - TICKET-P2-002 (Reducer & Storage): COMPLETE — reviewed and approved
 - TICKET-P2-003 (Migration & Fresh Install): COMPLETE — reviewed and approved
 - TICKET-P2-004 (Fixed Column Structure): COMPLETE — reviewed and approved
-- TICKET-P2-005 (Task Components): COMPLETE — awaiting review
-- TICKET-P2-006 through P2-008: NOT STARTED
+- TICKET-P2-005 (Task Components): COMPLETE — reviewed and approved (10/10)
+- TICKET-P2-006 (Task Summary & Progress Display): COMPLETE — approved (fix: dark:text-slate-500 contrast)
+- TICKET-P2-007 (Task Status Filter): COMPLETE — committed (fix: dark:text-slate-500 on Tasks h3)
+- TICKET-P2-008 (Polish & Integration): COMPLETE — all 15 ACs verified, build passes, ready for QA
+
+## Phase 2 Final State
+- All Phase 2 source code committed on branch: feat-kanban-task
+- Build: `npm run build` — zero TypeScript errors, zero warnings
+- No console.log, no TODO markers, no dead code in src/
+- Ready for QA handoff

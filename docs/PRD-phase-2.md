@@ -1,116 +1,152 @@
-# Product Requirements Document: Kanban Board App — Phase 2
+> **Note:** This document covers Phase 2 of the Kanban board application. Phase 2 introduces nested Tasks within Cards, a fixed 5-column board structure, and task-status filtering. It replaces the previously planned multi-board Phase 2 direction. For the foundational single-board implementation, see [PRD-phase-1.md](./PRD-phase-1.md).
+
+# Product Requirements Document: Kanban Board App — Phase 2 (Tasks)
 
 ## Metadata
 
-| Field         | Value                                        |
-| ------------- | -------------------------------------------- |
-| Project       | Kanban Board                                 |
-| Version       | 2.0.0                                        |
-| Phase         | 2 — Multi-Board (Frontend Only)              |
-| Status        | Draft                                        |
-| Created       | 2026-03-22                                   |
-| Depends On    | Phase 1 (complete)                           |
-| Stack         | React, TypeScript, Tailwind CSS, React Router|
-| Persistence   | localStorage                                 |
+| Field         | Value                                  |
+| ------------- | -------------------------------------- |
+| Project       | Kanban Board                           |
+| Version       | 2.0.0                                  |
+| Phase         | 2 — Tasks & Simplified Structure       |
+| Status        | Draft                                  |
+| Created       | 2026-03-23                             |
+| Depends on    | Phase 1 (complete)                     |
+| Stack         | React, TypeScript, Tailwind CSS        |
+| Persistence   | localStorage                           |
 
 ---
 
-## 1. Overview
+## 1. Product Vision
 
-### 1.1 Problem Statement
+### 1.1 Philosophy
 
-Phase 1 delivers a single Kanban board. Users who manage work across multiple projects, contexts, or teams have no way to separate those concerns — everything lives on one board. They need the ability to create, organize, and navigate between multiple independent boards without losing their existing data.
+This product exists for people who want the clarity of a Kanban board without the overhead of enterprise project management tools. The guiding principle is **simplicity-first**: every feature must earn its place by reducing friction, not adding configuration. If a user has to read documentation to use a feature, the feature is too complex.
 
-### 1.2 Solution
+Phase 2 deepens the board's usefulness by introducing **Tasks** as first-class entities nested inside Cards. A Card becomes a container for related work items, and each Task carries its own status independent of the Card's column position. This gives users the ability to track granular progress without leaving the lightweight Kanban paradigm.
 
-Extend the existing Kanban app to support multiple boards, each with its own columns and cards. Introduce a boards list home page as the new entry point, client-side routing to navigate between boards, and an automatic migration path that preserves all Phase 1 data. All data remains in `localStorage` — no backend is introduced in this phase.
+### 1.2 Problem Statement
 
-### 1.3 Goals
+In Phase 1, a Card is an atomic unit with no internal structure. Users who want to break a larger piece of work into sub-steps have no way to do so within the app. They resort to writing checklists in the description field (unstructured text with no status tracking), or they create many fine-grained Cards that clutter the board and dilute the value of column-level organization.
 
-- Allow users to create and manage up to 10 independent boards
-- Provide a home page that gives a quick overview of all boards
-- Enable seamless navigation between the boards list and individual boards
-- Automatically migrate Phase 1 single-board data into the new multi-board schema with zero data loss
-- Maintain all Phase 1 functionality within each board (columns, cards, drag-and-drop, search/filter)
+### 1.3 Solution
 
-### 1.4 Non-Goals (Phase 2)
+Introduce a **Task** entity that lives inside a Card. Each Task has a title, optional description, and one of five statuses. Users manage Tasks exclusively through the Card detail modal. The board view shows a compact summary of task progress on each Card, and a new filter mechanism lets users find Cards based on the statuses of their Tasks.
 
+Simultaneously, Phase 2 **simplifies the board structure** by locking columns to a fixed set of five (matching the five task statuses) and removing column creation, deletion, and reordering. This aligns the board's visual structure with the task lifecycle and removes configuration surface area that adds complexity without proportional value for the target audience.
+
+### 1.4 Goals
+
+- Allow users to decompose Cards into trackable sub-items (Tasks)
+- Provide at-a-glance progress visibility on each Card in the board view
+- Enable filtering the board by task status to answer questions like "show me everything that's blocked"
+- Reduce configuration burden by fixing the column structure
+- Maintain the zero-setup, offline-first, localStorage-backed architecture from Phase 1
+
+### 1.5 Non-Goals (Phase 2)
+
+- Multi-board support
 - Backend API / database persistence
-- User authentication / multi-user support
+- User authentication
 - Real-time collaboration
-- Board templates or board duplication
-- Cross-board search (search remains scoped to the active board)
-- Board reordering on the boards list page
-- Drag-and-drop of boards
-- Board archiving (soft-delete)
-- Sharing or exporting boards
-- File attachments, due dates, calendar integration
+- Task priority, labels, or assignee fields
+- Task drag-and-drop reordering (tasks ordered by creation date)
+- Adding tasks directly from the board view (only via Card detail modal)
+- Task due dates or time tracking
+- Subtasks within Tasks (single nesting level only)
 
 ---
 
-## 2. Tech Stack
+## 2. Target User
 
-| Layer         | Technology                          | Rationale                                              |
-| ------------- | ----------------------------------- | ------------------------------------------------------ |
-| Framework     | React 18+                          | Carried forward from Phase 1                           |
-| Language      | TypeScript                          | Carried forward from Phase 1                           |
-| Build Tool    | Vite                                | Carried forward from Phase 1                           |
-| Styling       | Tailwind CSS                        | Carried forward from Phase 1                           |
-| Drag & Drop   | @dnd-kit/core + @dnd-kit/sortable  | Carried forward from Phase 1                           |
-| **Routing**   | **react-router-dom v6**            | **NEW — client-side routing for board navigation**     |
-| State         | React Context + useReducer          | Extended for multi-board state                         |
-| Persistence   | localStorage                        | No backend in Phase 2                                  |
-| Icons         | lucide-react                        | Carried forward from Phase 1                           |
-| IDs           | uuid                                | Carried forward from Phase 1                           |
+**Persona: Solo practitioner or small-team lead (2-5 people)**
 
-### 2.1 New Dependency
-
-```bash
-npm install react-router-dom@6
-```
+- Uses a Kanban board for personal productivity or lightweight team coordination
+- Wants to break work into steps without adopting a full project management suite
+- Values speed and simplicity over configurability
+- Comfortable with a browser-based tool; does not need mobile-native
+- Current workaround: writes checklists in Card descriptions, or creates excessive Cards
 
 ---
 
-## 3. Data Model
+## 3. Board Structure Changes
 
-### 3.1 BoardMeta (NEW)
+### 3.1 Fixed Five-Column Layout
 
-Lightweight metadata stored in the boards index. Does **not** contain columns or cards — those remain on the individual board objects.
+Phase 2 replaces the flexible column system with a **fixed, non-configurable set of five columns**:
+
+| Position | Column Title   | Accent Color | Semantic Meaning                        |
+| -------- | -------------- | ------------ | --------------------------------------- |
+| 1        | To Do          | `#94a3b8`    | Work not yet started                    |
+| 2        | In Progress    | `#3b82f6`    | Work actively being done                |
+| 3        | Done           | `#22c55e`    | Work completed successfully             |
+| 4        | Dropped        | `#ef4444`    | Work intentionally abandoned            |
+| 5        | Blocked        | `#f59e0b`    | Work stalled due to external dependency |
+
+These columns are structural and permanent. They cannot be renamed, reordered, added, or deleted.
+
+### 3.2 Removed Column Features
+
+The following Phase 1 features are **removed** in Phase 2:
+
+| Removed Feature           | Phase 1 ID | Reason                                                      |
+| ------------------------- | ---------- | ----------------------------------------------------------- |
+| Add new column            | C-002      | Columns are now fixed; adding creates inconsistency         |
+| Edit column title         | C-003      | Titles are semantic and must not change                     |
+| Delete column             | C-004      | Removing a status column breaks the task lifecycle model    |
+| Reorder columns via DnD   | C-005      | Column order is meaningful and fixed                        |
+| Set column accent color   | C-006      | Colors are semantically assigned to status meaning          |
+
+**Retained Column Features:**
+
+| Feature                        | Phase 1 ID | Notes                                          |
+| ------------------------------ | ---------- | ---------------------------------------------- |
+| Display columns horizontally   | C-001      | Unchanged                                      |
+| Card count badge               | C-007      | Unchanged                                      |
+
+### 3.3 Data Migration
+
+**Phase 2 uses a fresh-start approach:** On first load after the Phase 2 upgrade, any existing Phase 1 data is discarded and the board starts with the default Phase 2 schema (5 fixed columns, empty task map). No fuzzy column title matching or data preservation is attempted.
+
+This simplified approach is acceptable because:
+- The app is in pre-production with zero real users.
+- The Phase 2 schema is sufficiently different (fixed columns, tasks as first-class entities) that a clean break is cleaner than attempting to preserve arbitrary Phase 1 structures.
+- Users expect to lose demo data when upgrading pre-release software.
+
+**Fresh Install Flow:**
+1. Check for `kanban_schema_version` in localStorage. If absent or less than 2, proceed with fresh install (ignore any Phase 1 keys).
+2. Create the five fixed columns with new IDs.
+3. Initialize the default `AppState` with empty Cards and empty Tasks.
+4. Write `kanban_schema_version: 2` to localStorage to mark the schema upgrade complete.
+5. Subsequent loads check `kanban_schema_version` and skip re-initialization.
+
+---
+
+## 4. Data Model
+
+### 4.1 Task (New Entity)
 
 ```typescript
-interface BoardMeta {
-  id: string;          // UUID, same as the Board.id it references
+type TaskStatus = "todo" | "in_progress" | "done" | "dropped" | "blocked";
+
+interface Task {
+  id: string;
   title: string;
-  totalCards: number;  // denormalized count, updated on card add/delete
+  description: string;
+  status: TaskStatus;
   createdAt: string;   // ISO 8601
   updatedAt: string;   // ISO 8601
 }
 ```
 
-### 3.2 Board (unchanged from Phase 1)
+**Constraints:**
+- Task title: required, max 200 characters
+- Task description: optional (empty string default), max 1000 characters
+- Task status: required, defaults to `"todo"` on creation
+- Task status is independent of the parent Card's column position
+- Tasks are ordered by `createdAt` ascending (oldest first); no manual reordering
 
-```typescript
-interface Board {
-  id: string;
-  title: string;
-  columns: Column[];
-  createdAt: string;   // ISO 8601
-  updatedAt: string;   // ISO 8601
-}
-```
-
-### 3.3 Column (unchanged from Phase 1)
-
-```typescript
-interface Column {
-  id: string;
-  title: string;
-  cardIds: string[];   // ordered list of card IDs
-  color: string;       // hex color for column header accent
-}
-```
-
-### 3.4 Card (unchanged from Phase 1)
+### 4.2 Card (Modified)
 
 ```typescript
 interface Card {
@@ -119,664 +155,832 @@ interface Card {
   description: string;
   priority: "low" | "medium" | "high";
   labels: string[];
-  createdAt: string;   // ISO 8601
-  updatedAt: string;   // ISO 8601
+  taskIds: string[];     // NEW — ordered list of task IDs
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
-### 3.5 AppState (UPDATED)
+The only structural change to Card is the addition of `taskIds: string[]`. All other fields remain unchanged from Phase 1.
+
+### 4.3 Column (Modified)
 
 ```typescript
-// Global state available at all routes
-interface AppState {
-  boards: BoardMeta[];                   // ordered list of all boards (index)
-  activeBoardId: string | null;          // currently viewed board, null on boards list
-  activeBoard: Board | null;             // full board data when viewing a board
-  cards: Record<string, Card>;           // cards for the active board only
-  migrationComplete: boolean;            // true after Phase 1 migration runs
+interface Column {
+  id: string;
+  title: string;          // Now read-only from the UI perspective
+  cardIds: string[];
+  color: string;          // Now fixed per column, not user-configurable
+  isFixed: true;          // NEW — signals that this column cannot be modified
 }
 ```
 
-### 3.6 Board Title Consistency
+### 4.4 AppState (Modified)
 
-**Phase 2 uses "My Board" as the default title for new boards.** This differs from Phase 1's legacy "My Kanban Board", but ensures consistency across all Phase 2 operations (fresh install, new board creation). Phase 1 data is migrated with its original title intact.
+```typescript
+interface AppState {
+  board: Board;
+  cards: Record<string, Card>;
+  tasks: Record<string, Task>;   // NEW — normalized task storage by ID
+}
+```
 
-### 3.6 localStorage Schema (UPDATED)
+### 4.5 localStorage Schema
 
-| Key                        | Type                    | Description                                                  |
-| -------------------------- | ----------------------- | ------------------------------------------------------------ |
-| `kanban_boards`            | `BoardMeta[]`           | **NEW** — Index of all boards (metadata only)                |
-| `kanban_board_{boardId}`   | `Board`                 | **NEW** — Full board structure for a specific board           |
-| `kanban_cards_{boardId}`   | `Record<string, Card>`  | **NEW** — All cards for a specific board, indexed by card ID  |
-| `kanban_theme`             | `string`                | Unchanged — `"light"` or `"dark"`                            |
-| `kanban_migrated`          | `boolean`               | **NEW** — Flag indicating Phase 1 migration has completed     |
-
-**Phase 1 keys (deprecated, removed after migration):**
-
-| Key               | Status                                  |
-| ----------------- | --------------------------------------- |
-| `kanban_board`    | Read during migration, deleted after    |
-| `kanban_cards`    | Read during migration, deleted after    |
+| Key                     | Type                     | Description                              |
+| ----------------------- | ------------------------ | ---------------------------------------- |
+| `kanban_board`          | `Board`                  | Board structure with fixed columns       |
+| `kanban_cards`          | `Record<string, Card>`   | All cards indexed by ID                  |
+| `kanban_tasks`          | `Record<string, Task>`   | All tasks indexed by ID (NEW)            |
+| `kanban_theme`          | `string`                 | Theme preference                         |
+| `kanban_schema_version` | `number`                 | Schema version for migration detection (NEW) |
 
 ---
 
-## 4. Features
+## 5. Features
 
-### 4.1 Board List Page (BL-xxx)
+### 5.1 Task Management
 
-| ID     | Requirement                                                              | Priority |
-| ------ | ------------------------------------------------------------------------ | -------- |
-| BL-001 | Display a list of all boards as cards on the home page at route `/`      | P0       |
-| BL-002 | Each board card shows: title, total card count, created date             | P0       |
-| BL-003 | Board card has collapsed view (title + total card count) by default      | P0       |
-| BL-004 | Board card has expanded view toggled by chevron: shows column names + per-column card counts (lazy-loaded) | P1 |
-| BL-004a| Expanded view gracefully handles missing board data (render "—" instead of crashing) | P1 |
-| BL-005 | Clicking a board card navigates to `/boards/:boardId`                    | P0       |
-| BL-006 | Display a "+ New Board" button/card                                      | P0       |
-| BL-007 | Show empty state when no boards exist (should not occur due to min-1 rule, but defend against it) | P1 |
-| BL-008 | Board cards display rename and delete action buttons                     | P0       |
+| ID     | Requirement                                                  | Priority |
+| ------ | ------------------------------------------------------------ | -------- |
+| T-001  | View list of tasks within Card detail modal                  | P0       |
+| T-002  | Add a new task via inline form in Card detail modal          | P0       |
+| T-003  | Edit task title inline in Card detail modal                  | P0       |
+| T-004  | Edit task description in Card detail modal                   | P1       |
+| T-005  | Change task status via dropdown/select in Card detail modal  | P0       |
+| T-006  | Delete a task (with confirmation)                            | P0       |
+| T-007  | Display task count summary on Card in board view             | P0       |
+| T-008  | Display task progress bar on Card in board view              | P1       |
+| T-009  | Tasks ordered by creation date (oldest first)                | P0       |
+| T-010  | Empty state message when Card has no tasks                   | P0       |
 
-**Constraints:**
-- Board cards are **not** reorderable (static display order by creation date, oldest first)
-- Maximum 10 boards displayed (enforced — cannot create more)
-- Minimum 1 board must always exist
+**Task Add Flow:**
+1. User clicks "Add Task" button in Card detail modal.
+2. An inline text input appears at the bottom of the task list.
+3. User types task title and presses Enter (or clicks a confirm button).
+4. Task is created with status `"todo"` and empty description.
+5. Input clears and remains visible for rapid sequential entry.
+6. Pressing Escape or clicking away dismisses the input without creating a task.
 
-### 4.2 Board Management (BM-xxx)
+**Task Status Change Flow:**
+1. Each task row shows a status dropdown/selector.
+2. User selects a new status from the five options.
+3. Status updates immediately (optimistic).
+4. No confirmation dialog needed for status changes.
 
-| ID     | Requirement                                                              | Priority |
-| ------ | ------------------------------------------------------------------------ | -------- |
-| BM-001 | Create a new board via modal: name field only                            | P0       |
-| BM-002 | New board initializes with 3 default columns: "To Do", "In Progress", "Done" | P0  |
-| BM-003 | Rename a board inline on the board card (same UX pattern as column title editing) | P0 |
-| BM-004 | Delete a board with confirmation dialog showing board name + total card count | P0  |
-| BM-005 | Last remaining board cannot be deleted (delete button disabled with tooltip) | P0  |
-| BM-006 | Enforce maximum of 10 boards — disable "+ New Board" when limit reached  | P0       |
-| BM-007 | Board title max length: 100 characters                                   | P1       |
-| BM-008 | Board title cannot be empty (trim whitespace, reject blank)              | P1       |
+**Task Delete Flow:**
+1. Each task row has a delete icon/button.
+2. Clicking triggers a confirmation dialog: "Delete task '[title]'? This cannot be undone."
+3. On confirm, task is removed from Card's `taskIds` and from `tasks` storage.
 
-**Board Creation Flow:**
-1. User clicks "+ New Board"
-2. Modal appears with a single text input ("Board Name") and Create / Cancel buttons
-3. User enters name, clicks Create (or presses Enter)
-4. Board is created with 3 default columns and 0 cards
-5. User is returned to boards list (does NOT auto-navigate into the new board)
+### 5.2 Card Board View Changes
 
-**Board Deletion Flow:**
-1. User clicks delete icon on a board card
-2. Confirmation dialog appears: "Delete '{Board Name}'? This board has {N} cards. This action cannot be undone."
-3. User confirms → board is deleted from `kanban_boards`, its `kanban_board_{id}` and `kanban_cards_{id}` localStorage keys are removed
-4. User remains on boards list
+| ID     | Requirement                                                  | Priority |
+| ------ | ------------------------------------------------------------ | -------- |
+| V-001  | Card shows compact task summary: "X/Y tasks done"           | P0       |
+| V-002  | Card shows mini progress bar (done tasks / total tasks)      | P1       |
+| V-003  | Cards with zero tasks show no task summary element           | P0       |
+| V-004  | Task summary counts only "done" status as completed          | P0       |
 
-### 4.3 Navigation (NAV-xxx)
+**Summary Display Logic:**
+- If a Card has 0 tasks: no task summary or progress bar is rendered.
+- If a Card has tasks: show "X/Y tasks" where X = count of tasks with status `"done"`, Y = total task count **excluding dropped tasks**.
+- Progress bar width = (done count / total count-excluding-dropped) * 100%.
+- **"Dropped" tasks are excluded entirely from the progress denominator** — they do not count toward "Y" in "X/Y tasks".
+- "Blocked" tasks are included in the total count but NOT counted as done (they still count toward Y).
 
-| ID      | Requirement                                                             | Priority |
-| ------- | ----------------------------------------------------------------------- | -------- |
-| NAV-001 | Boards list page is at route `/`                                        | P0       |
-| NAV-002 | Individual board page is at route `/boards/:boardId`                    | P0       |
-| NAV-003 | Breadcrumb in header when inside a board: "All Boards > {Board Title}"  | P0       |
-| NAV-004 | "All Boards" in breadcrumb is a clickable link back to `/`              | P0       |
-| NAV-005 | Browser back/forward buttons work correctly between routes              | P0       |
-| NAV-006 | Navigating to `/boards/:invalidId` shows a "Board not found" page with link back to `/` | P1 |
-| NAV-007 | Direct URL access (e.g., bookmark `/boards/abc123`) loads the correct board | P0    |
+### 5.3 Task Status Filter
 
-### 4.4 Header Behavior (NAV-xxx continued)
+| ID     | Requirement                                                  | Priority |
+| ------ | ------------------------------------------------------------ | -------- |
+| F-001  | Display task status filter as a group of checkboxes          | P0       |
+| F-002  | Five checkboxes, one per task status                         | P0       |
+| F-003  | All checkboxes unchecked by default (no filter active)       | P0       |
+| F-004  | When one or more statuses are checked, filter Cards          | P0       |
+| F-005  | A Card passes the filter if it has at least one task matching any checked status | P0 |
+| F-006  | Cards with zero tasks are hidden when any status filter is active | P0 |
+| F-007  | Status filter combines with existing search and priority filters (AND logic) | P1 |
+| F-008  | "Clear all filters" button resets status checkboxes too      | P0 |
+| F-009  | Show "No matching cards" state when filters yield empty results | P0 |
+| F-010  | DnD is disabled when any filter (including task status) is active | P0 |
 
-| ID      | Requirement                                                             | Priority |
-| ------- | ----------------------------------------------------------------------- | -------- |
-| NAV-008 | **Boards list header**: App title ("Kanban Board") + ThemeToggle only   | P0       |
-| NAV-009 | **Board page header**: Breadcrumb + SearchBar + FilterControls + ThemeToggle (same as Phase 1 header) | P0 |
-| NAV-010 | Search and filter remain scoped to the currently active board only      | P0       |
+**Filter Behavior Details:**
+- Checking "Blocked" shows only Cards that contain at least one task with status `"blocked"`.
+- Checking both "Blocked" and "In Progress" shows Cards that contain at least one task that is either blocked OR in progress.
+- The task status filter operates with OR logic among checked statuses, but AND logic with the search query and priority filter.
+- Example: if the user types "API" in search AND checks "Blocked", only Cards whose title contains "API" AND which have at least one blocked task are shown.
 
-### 4.5 Data Migration (MIG-xxx)
+### 5.4 Removed Features
 
-| ID      | Requirement                                                             | Priority |
-| ------- | ----------------------------------------------------------------------- | -------- |
-| MIG-001 | On app load, check for `kanban_migrated` flag in localStorage           | P0       |
-| MIG-002 | If not migrated, check for Phase 1 keys (`kanban_board`, `kanban_cards`) | P0      |
-| MIG-003 | If Phase 1 data found: migrate board + cards into multi-board schema as the first board | P0 |
-| MIG-004 | Preserve all Phase 1 data: board title, columns, column order, card data, card order | P0 |
-| MIG-005 | After successful migration, delete old `kanban_board` and `kanban_cards` keys | P0    |
-| MIG-006 | Set `kanban_migrated` flag to `true`                                    | P0       |
-| MIG-007 | If no Phase 1 data exists and no multi-board data exists, create a default board | P0 |
-| MIG-008 | Migration runs only once (idempotent — `kanban_migrated` flag prevents re-runs) | P0 |
-| MIG-009 | If migration fails (corrupted data), log error to console and create a fresh default board | P1 |
+| Removed Feature                | Phase 1 ID | Replaced By / Reason                                |
+| ------------------------------ | ---------- | ---------------------------------------------------- |
+| Add Column button              | C-002      | Columns are fixed                                    |
+| Column title editing           | C-003      | Titles are semantic and read-only                    |
+| Delete Column                  | C-004      | Columns cannot be removed                            |
+| Column drag reorder            | C-005      | Column order is fixed                                |
+| Column color picker            | C-006      | Colors are semantically assigned                     |
 
-### 4.6 Within-Board Features (unchanged from Phase 1)
+### 5.5 Retained Phase 1 Features (Unchanged)
 
-All Phase 1 features remain fully functional within each board:
-- Column management (add, edit, delete, reorder, color, card count badge)
-- Card management (add, edit, delete, detail modal, priority, labels, drag-and-drop)
-- Search and filter (scoped to current board)
-- Theme toggle (global, persists across boards)
-
-No new column or card capabilities are introduced in Phase 2.
-
----
-
-## 5. Component Architecture
-
-```
-BrowserRouter
-├── App
-│   ├── ThemeProvider (global)
-│   ├── ToastProvider (global)
-│   └── Routes
-│       ├── Route path="/" → BoardsListPage
-│       │   ├── BoardsListHeader
-│       │   │   ├── AppTitle ("Kanban Board")
-│       │   │   └── ThemeToggle
-│       │   ├── BoardCardGrid
-│       │   │   └── BoardCard (repeated, max 10)
-│       │   │       ├── BoardCardCollapsed
-│       │   │       │   ├── BoardTitle (inline-editable)
-│       │   │       │   ├── TotalCardCount
-│       │   │       │   ├── CreatedDate
-│       │   │       │   ├── ChevronToggle (expand/collapse)
-│       │   │       │   └── ActionButtons (rename, delete)
-│       │   │       └── BoardCardExpanded (conditionally rendered)
-│       │   │           └── ColumnSummaryList
-│       │   │               └── ColumnSummaryItem (column name + card count, repeated)
-│       │   ├── NewBoardButton
-│       │   └── NewBoardModal
-│       │       └── BoardNameInput
-│       │
-│       ├── Route path="/boards/:boardId" → BoardPage
-│       │   ├── BoardProvider (board-scoped context)
-│       │   ├── FilterProvider (board-scoped)
-│       │   ├── BoardPageHeader
-│       │   │   ├── Breadcrumb ("All Boards > {Board Title}")
-│       │   │   ├── SearchBar
-│       │   │   ├── FilterControls
-│       │   │   └── ThemeToggle
-│       │   ├── Board (Phase 1 Board component, unchanged)
-│       │   │   ├── Column (repeated)
-│       │   │   │   ├── ColumnHeader
-│       │   │   │   ├── CardList (droppable)
-│       │   │   │   │   └── CardItem (draggable, repeated)
-│       │   │   │   └── AddCardButton
-│       │   │   └── AddColumnButton
-│       │   ├── CardDetailModal
-│       │   └── ConfirmDialog
-│       │
-│       └── Route path="*" → NotFoundPage
-│           └── Link to "/"
-```
+All other Phase 1 features continue to work as specified:
+- Board title editing (B-001, B-002)
+- Board auto-save and load (B-003, B-004, B-005)
+- Card CRUD (K-001 through K-011)
+- Card drag-and-drop between columns and within columns (D-001 through D-005)
+- Search by card title (S-001)
+- Filter by priority (S-002)
+- Filter by label (S-003)
+- Clear all filters (S-004) — extended to include task status
+- No results state (S-005) — extended to cover task status filter
+- All UI/UX features (U-001 through U-006)
 
 ---
 
 ## 6. State Management
 
-### 6.1 State Architecture
-
-Phase 2 splits state into two layers:
-
-1. **Global state** (available everywhere): boards index (`BoardMeta[]`), theme
-2. **Board-scoped state** (available only inside `/boards/:boardId`): active board, cards, filters
-
-```
-GlobalContext (boards index, theme)
-└── BoardContext (active board + cards — loaded/unloaded on route change)
-    └── FilterContext (search query, priority filter, label filter)
-```
-
-### 6.2 Actions (UPDATED)
+### 6.1 New Actions
 
 ```typescript
-// === Global Actions (boards index) ===
-type GlobalAction =
-  | { type: "LOAD_BOARDS"; payload: BoardMeta[] }
-  | { type: "ADD_BOARD"; payload: BoardMeta }
-  | { type: "RENAME_BOARD"; payload: { id: string; title: string } }
-  | { type: "DELETE_BOARD"; payload: { id: string } }
-  | { type: "UPDATE_BOARD_CARD_COUNT"; payload: { id: string; totalCards: number } };
+type Action =
+  // ... all existing Phase 1 actions, MINUS column mutation actions ...
+  // Phase 1 actions REMOVED:
+  //   ADD_COLUMN
+  //   DELETE_COLUMN
+  //   REORDER_COLUMNS
+  //   UPDATE_COLUMN (color and title changes — keep for internal migration use only)
 
-// === Board-Scoped Actions (within a single board) ===
-type BoardAction =
-  // Board
+  // Phase 1 actions RETAINED:
   | { type: "SET_BOARD_TITLE"; payload: string }
-  // Columns
-  | { type: "ADD_COLUMN"; payload: { title: string } }
-  | { type: "UPDATE_COLUMN"; payload: { id: string; title?: string; color?: string } }
-  | { type: "DELETE_COLUMN"; payload: { id: string } }
-  | { type: "REORDER_COLUMNS"; payload: { sourceIndex: number; destinationIndex: number } }
-  // Cards
   | { type: "ADD_CARD"; payload: { columnId: string; card: Card } }
   | { type: "UPDATE_CARD"; payload: { id: string; updates: Partial<Card> } }
   | { type: "DELETE_CARD"; payload: { id: string; columnId: string } }
-  | { type: "MOVE_CARD"; payload: { cardId: string; sourceColumnId: string; destinationColumnId: string; sourceIndex: number; destinationIndex: number } }
-  // Persistence
-  | { type: "LOAD_STATE"; payload: { board: Board; cards: Record<string, Card> } };
+  | { type: "MOVE_CARD"; payload: { cardId: string; sourceColumnId: string; destinationColumnId: string; sourceIndex: number; destinationIndex: number; newCardIds?: string[] } }
+  | { type: "LOAD_STATE"; payload: AppState }
+
+  // Phase 2 NEW actions:
+  | { type: "ADD_TASK"; payload: { cardId: string; task: Task } }
+  | { type: "UPDATE_TASK"; payload: { id: string; cardId: string; updates: Partial<Omit<Task, "id" | "createdAt">> } }
+  | { type: "DELETE_TASK"; payload: { taskId: string; cardId: string } }
 ```
 
-### 6.3 Reducer Guards
+### 6.2 Action Semantics
 
-The global reducer MUST enforce these invariants:
+**ADD_TASK:**
+- Adds the task to `state.tasks` keyed by `task.id`.
+- Appends `task.id` to the parent Card's `taskIds` array.
+- Updates Card's `updatedAt` and Board's `updatedAt`.
 
-| Rule                          | Enforcement                                                                 |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| Max 10 boards                 | `ADD_BOARD` is a no-op if `boards.length >= 10`                             |
-| Min 1 board                   | `DELETE_BOARD` is a no-op if `boards.length <= 1`                           |
-| No empty board titles         | `ADD_BOARD` and `RENAME_BOARD` reject empty/whitespace-only titles          |
-| Board title max 100 chars     | `ADD_BOARD` and `RENAME_BOARD` truncate or reject titles exceeding 100 chars|
+**UPDATE_TASK:**
+- Takes both `id` (task ID) and `cardId` (parent card ID) for efficient parent lookups.
+- Merges `updates` into the existing task in `state.tasks`.
+- Sets task's `updatedAt` to current timestamp.
+- Updates Card's `updatedAt` (via `cardId`) and Board's `updatedAt`.
+- If the task ID does not exist in `state.tasks`, the action is a no-op (return current state).
 
-### 6.4 Persistence Strategy (UPDATED)
+**DELETE_TASK:**
+- Removes `taskId` from the parent Card's `taskIds` array.
+- Deletes the task from `state.tasks`.
+- Updates Card's `updatedAt` and Board's `updatedAt`.
+- If the task ID does not exist, the action is a no-op.
 
-- **Boards index**: read/write `kanban_boards` on every `GlobalAction` dispatch (debounced 300ms)
-- **Active board**: read `kanban_board_{boardId}` + `kanban_cards_{boardId}` when navigating into a board; write on every `BoardAction` dispatch (debounced 300ms)
-- **On board leave**: no explicit save needed (already saved on last action)
-- **Card count sync**: when a card is added or deleted within a board, dispatch `UPDATE_BOARD_CARD_COUNT` to update the global boards index
-- **Board rename sync**: when a board title is changed from within the board page (via breadcrumb or other means), dispatch `RENAME_BOARD` to update the global index
+**DELETE_CARD (modified):**
+- When a Card is deleted, all Tasks referenced by the Card's `taskIds` must also be deleted from `state.tasks`.
+
+### 6.3 Filter State Extension
+
+```typescript
+interface FilterContextValue {
+  // Existing Phase 1 fields:
+  searchQuery: string;
+  priorityFilter: PriorityFilter;
+  labelFilter: string | null;
+  isFiltering: boolean;
+
+  // Phase 2 NEW:
+  taskStatusFilter: Set<TaskStatus>;   // empty set = no filter
+
+  // Existing setters:
+  setSearchQuery: (query: string) => void;
+  setPriorityFilter: (priority: PriorityFilter) => void;
+  setLabelFilter: (label: string | null) => void;
+  clearFilters: () => void;
+
+  // Phase 2 NEW:
+  toggleTaskStatusFilter: (status: TaskStatus) => void;
+}
+```
+
+- `isFiltering` must now also return `true` when `taskStatusFilter.size > 0`.
+- `clearFilters` must also reset `taskStatusFilter` to an empty set.
+
+### 6.4 Persistence Strategy
+
+Unchanged from Phase 1 (debounced localStorage writes) with two additions:
+- `state.tasks` is serialized/deserialized alongside `state.board` and `state.cards`.
+- A `kanban_schema_version` key is checked on load to determine whether migration is needed.
 
 ---
 
-## 6.5 Deployment Configuration
+## 7. Component Architecture
 
-For production SPA (Single Page Application) to work correctly with client-side routing, the hosting platform must be configured to serve `index.html` for all routes. This ensures `/boards/{boardId}` deep URLs don't return 404s.
+### 7.1 Updated Component Tree
 
-**Vite Dev Server:** `historyApiFallback` is automatic — no config needed.
+```
+App
++-- Header
+|   +-- BoardTitle (editable)
+|   +-- SearchBar
+|   +-- FilterControls
+|   |   +-- PriorityFilter (existing)
+|   |   +-- TaskStatusFilter (NEW)
+|   |   +-- ClearFiltersButton
+|   +-- ThemeToggle
++-- Board
+|   +-- Column (x5, fixed)
+|   |   +-- ColumnHeader
+|   |   |   +-- ColumnTitle (read-only now)
+|   |   |   +-- CardCount
+|   |   +-- CardList (droppable)
+|   |   |   +-- CardItem (draggable, repeated)
+|   |   |       +-- CardTitle
+|   |   |       +-- PriorityBadge
+|   |   |       +-- LabelChips
+|   |   |       +-- TaskSummary (NEW)
+|   |   |           +-- TaskCountText ("3/5 tasks")
+|   |   |           +-- TaskProgressBar
+|   |   +-- AddCardButton
++-- CardDetailModal
+|   +-- TitleInput
+|   +-- DescriptionInput
+|   +-- PrioritySelect
+|   +-- LabelsInput
+|   +-- TaskSection (NEW)
+|   |   +-- TaskList (NEW)
+|   |   |   +-- TaskItem (repeated) (NEW)
+|   |   |       +-- TaskTitleInput (inline edit)
+|   |   |       +-- TaskStatusSelect
+|   |   |       +-- TaskDeleteButton
+|   |   +-- AddTaskForm (NEW)
+|   |   +-- TaskEmptyState (NEW)
+|   +-- MetadataDisplay (dates)
+|   +-- DeleteButton
++-- ConfirmDialog
+```
 
-**Production Hosts:**
-- **Vercel:** Auto-configures SPA fallback on build
-- **Netlify:** Add `netlify.toml`:
-  ```toml
-  [[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  ```
-- **GitHub Pages:** NOT recommended (lacks SPA fallback support)
-- **Self-hosted (nginx, etc.):** Configure server to serve `index.html` for 404s
+### 7.2 New Components
+
+| Component          | Location                              | Purpose                                            |
+| ------------------ | ------------------------------------- | -------------------------------------------------- |
+| `TaskSummary`      | `src/components/Card/TaskSummary.tsx`  | Compact "X/Y tasks" + progress bar on board cards  |
+| `TaskSection`      | `src/components/Task/TaskSection.tsx`  | Container for task list + add form in Card detail   |
+| `TaskList`         | `src/components/Task/TaskList.tsx`     | Renders ordered list of TaskItem components         |
+| `TaskItem`         | `src/components/Task/TaskItem.tsx`     | Single task row: title, status select, delete       |
+| `AddTaskForm`      | `src/components/Task/AddTaskForm.tsx`  | Inline input for creating new tasks                 |
+| `TaskEmptyState`   | `src/components/Task/TaskEmptyState.tsx`| "No tasks yet" message with prompt                 |
+| `TaskStatusFilter` | `src/components/Header/TaskStatusFilter.tsx` | Checkbox group for 5 task statuses           |
+
+### 7.3 Modified Components
+
+| Component          | Change                                                                |
+| ------------------ | --------------------------------------------------------------------- |
+| `CardItem`         | Add `TaskSummary` child when card has tasks                           |
+| `CardDetail`       | Add `TaskSection` below existing fields                               |
+| `ColumnHeader`     | Remove edit-title functionality; title is now read-only               |
+| `Column`           | Remove delete and color-change menu items                             |
+| `Board`            | Remove `AddColumnButton`; always render exactly 5 columns             |
+| `FilterControls`   | Add `TaskStatusFilter` component                                      |
+| `FilterContext`    | Add `taskStatusFilter` state and `toggleTaskStatusFilter`             |
+| `BoardContext`     | Add task-related reducer cases; extend DELETE_CARD; add tasks to state |
 
 ---
 
-## 7. File Structure
+## 8. File Structure (Phase 2 Changes)
 
 ```
 src/
-├── components/
-│   ├── Board/                         # Phase 1 — within-board components (unchanged)
-│   │   ├── Board.tsx
-│   │   ├── Column.tsx
-│   │   ├── ColumnHeader.tsx
-│   │   ├── AddColumn.tsx
-│   │   └── index.ts
-│   ├── BoardsList/                    # NEW — boards list page components
-│   │   ├── BoardCard.tsx              # Single board card with collapse/expand
-│   │   ├── BoardCardExpanded.tsx      # Expanded view with column breakdown
-│   │   ├── NewBoardButton.tsx         # "+ New Board" trigger
-│   │   ├── NewBoardModal.tsx          # Board creation modal
-│   │   └── index.ts
-│   ├── Card/                          # Phase 1 — unchanged
-│   │   ├── CardItem.tsx
-│   │   ├── CardDetail.tsx
-│   │   ├── AddCard.tsx
-│   │   └── index.ts
-│   ├── Header/                        # UPDATED — split into two header variants
-│   │   ├── BoardsListHeader.tsx       # NEW — header for boards list (title + theme)
-│   │   ├── BoardPageHeader.tsx        # NEW — header for board view (breadcrumb + search + filter + theme)
-│   │   ├── Breadcrumb.tsx             # NEW — "All Boards > {Board Title}"
-│   │   ├── SearchBar.tsx              # Phase 1 — unchanged
-│   │   ├── FilterControls.tsx         # Phase 1 — unchanged (if exists)
-│   │   └── index.ts
-│   └── UI/                            # Phase 1 — unchanged + additions
-│       ├── ConfirmDialog.tsx
-│       ├── Modal.tsx
-│       ├── ThemeToggle.tsx
-│       ├── Toast.tsx
-│       ├── NotFoundPage.tsx           # NEW — 404 page for invalid board IDs
-│       └── index.ts
-├── context/
-│   ├── BoardsContext.tsx              # NEW — global boards index context + reducer
-│   ├── BoardContext.tsx               # UPDATED — scoped to a single board (loaded per route)
-│   ├── FilterContext.tsx              # Phase 1 — unchanged
-│   ├── ThemeContext.tsx               # Phase 1 — unchanged
-│   └── ToastContext.tsx               # Phase 1 — unchanged
-├── hooks/
-│   ├── useLocalStorage.ts            # Phase 1 — unchanged
-│   ├── useDebouncedSave.ts           # Phase 1 — unchanged
-│   └── useMigration.ts              # NEW — Phase 1 data migration hook
-├── pages/                             # NEW — route-level page components
-│   ├── BoardsListPage.tsx            # Home page at "/"
-│   └── BoardPage.tsx                 # Individual board at "/boards/:boardId"
-├── types/
-│   └── index.ts                       # UPDATED — add BoardMeta, update AppState
-├── utils/
-│   ├── defaults.ts                    # UPDATED — add default board factory
-│   ├── storage.ts                     # UPDATED — multi-board read/write helpers
-│   ├── migration.ts                   # NEW — Phase 1 → Phase 2 migration logic
-│   ├── labelColor.ts                  # Phase 1 — unchanged
-│   └── scrollLock.ts                  # Phase 1 — unchanged
-├── App.tsx                            # UPDATED — BrowserRouter + Routes
-├── main.tsx                           # Phase 1 — unchanged
-└── index.css                          # Phase 1 — unchanged
++-- components/
+|   +-- Board/
+|   |   +-- Board.tsx              (modified: remove AddColumn, fix 5 columns)
+|   |   +-- Column.tsx             (modified: remove column menu actions)
+|   |   +-- ColumnHeader.tsx       (modified: read-only title)
+|   |   +-- AddColumn.tsx          (DELETED or unused)
+|   |   +-- index.ts
+|   +-- Card/
+|   |   +-- CardItem.tsx           (modified: add TaskSummary)
+|   |   +-- CardDetail.tsx         (modified: add TaskSection)
+|   |   +-- TaskSummary.tsx        (NEW)
+|   |   +-- AddCard.tsx
+|   |   +-- index.ts
+|   +-- Task/                      (NEW directory)
+|   |   +-- TaskSection.tsx        (NEW)
+|   |   +-- TaskList.tsx           (NEW)
+|   |   +-- TaskItem.tsx           (NEW)
+|   |   +-- AddTaskForm.tsx        (NEW)
+|   |   +-- TaskEmptyState.tsx     (NEW)
+|   |   +-- index.ts               (NEW)
+|   +-- Header/
+|   |   +-- Header.tsx
+|   |   +-- SearchBar.tsx
+|   |   +-- FilterControls.tsx     (modified: add TaskStatusFilter)
+|   |   +-- TaskStatusFilter.tsx   (NEW)
+|   |   +-- index.ts
+|   +-- UI/
+|       +-- (unchanged)
++-- context/
+|   +-- BoardContext.tsx            (modified: tasks in state, new actions)
+|   +-- FilterContext.tsx           (modified: taskStatusFilter)
+|   +-- ThemeContext.tsx
++-- hooks/
+|   +-- useLocalStorage.ts
+|   +-- useDebouncedSave.ts
++-- types/
+|   +-- index.ts                   (modified: Task type, TaskStatus, updated Card)
++-- utils/
+|   +-- defaults.ts                (modified: 5 fixed columns, empty tasks map)
+|   +-- storage.ts                 (modified: read/write tasks, schema version)
+|   +-- migration.ts               (NEW: Phase 1 -> Phase 2 data migration)
++-- App.tsx
++-- main.tsx
++-- index.css
 ```
 
 ---
 
-## 8. Acceptance Criteria
+## 9. User Stories & Acceptance Criteria
 
-### 8.1 Board List — Display
+### 9.1 Viewing Tasks in a Card
 
-**Scenario 1: User sees all boards on the home page**
+**User Story:**
+As a user, I want to see the tasks within a Card when I open its detail modal, so that I can understand the breakdown of work for that Card.
+
+**Scenario 1: Card with existing tasks**
 ```gherkin
-Given the user has 3 boards saved in localStorage
-When the user navigates to "/"
-Then the user sees 3 board cards displayed
-And each card shows the board title, total card count, and created date
-And the cards are ordered by creation date (oldest first)
+Given a Card exists with 3 tasks (statuses: "todo", "in_progress", "done")
+When the user clicks on the Card to open the detail modal
+Then the modal displays a "Tasks" section below the Card description
+And the section shows 3 task rows ordered by creation date (oldest first)
+And each task row displays the task title, current status, and a delete button
 ```
 
-**Scenario 2: Board card collapsed view (default)**
+**Scenario 2: Card with no tasks**
 ```gherkin
-Given the user is on the boards list page
-When a board card is in its default collapsed state
-Then the card displays the board title and total card count
-And a chevron icon indicating the card can be expanded
+Given a Card exists with zero tasks
+When the user clicks on the Card to open the detail modal
+Then the modal displays a "Tasks" section with the message "No tasks yet. Add one to break this card into steps."
+And an "Add Task" button or input is visible below the empty state message
 ```
 
-**Scenario 3: Board card expanded view**
+**Scenario 3: Task summary on board card**
 ```gherkin
-Given the user is on the boards list page
-And a board card is in its collapsed state
-When the user clicks the chevron toggle button on the card
-Then the card expands to show a list of column names with per-column card counts
-And the chevron icon rotates to indicate the expanded state
+Given a Card exists with 5 tasks where 2 have status "done"
+When the user views the board
+Then the Card displays "2/5 tasks" below the card title area
+And a progress bar shows 40% filled
 ```
 
-**Scenario 4: Board card collapse toggle**
+**Scenario 4: Board card with no tasks shows no summary**
 ```gherkin
-Given a board card is in its expanded state
-When the user clicks the chevron toggle button
-Then the card collapses back to show only the title and total card count
+Given a Card exists with zero tasks
+When the user views the board
+Then the Card does not display any task summary or progress bar
 ```
 
-### 8.2 Board Creation
+### 9.2 Adding a Task in Card Detail
 
-**Scenario 5: Create a new board (happy path)**
+**User Story:**
+As a user, I want to add tasks to a Card from the detail modal, so that I can break down the Card's work into smaller steps.
+
+**Scenario 1: Successfully add a task**
 ```gherkin
-Given the user is on the boards list page
-And fewer than 10 boards exist
-When the user clicks the "+ New Board" button
-Then a modal appears with a text input labeled "Board Name" and Create/Cancel buttons
-When the user types "Project Alpha" and clicks Create
-Then a new board is created with 3 default columns ("To Do", "In Progress", "Done") and 0 cards
-And the modal closes
-And the new board card appears on the boards list
+Given the user has the Card detail modal open
+When the user clicks "Add Task"
+And types "Write unit tests" in the task title input
+And presses Enter
+Then a new task titled "Write unit tests" is created with status "todo"
+And the task appears at the bottom of the task list
+And the input field clears and remains visible for adding another task
+And the board card's task summary updates to reflect the new count
 ```
 
-**Scenario 6: Board creation limit enforced**
+**Scenario 2: Dismiss add task without creating**
 ```gherkin
-Given the user has exactly 10 boards
-When the user views the boards list page
-Then the "+ New Board" button is disabled
-And a tooltip or message indicates "Maximum of 10 boards reached"
+Given the user has the task title input visible in the Card detail modal
+And the input is empty
+When the user presses Escape or clicks outside the input
+Then no task is created
+And the input is dismissed
 ```
 
-**Scenario 7: Board creation with empty name rejected**
+**Scenario 3: Attempt to add a task with empty title**
 ```gherkin
-Given the new board modal is open
-When the user submits with an empty or whitespace-only name
-Then the board is not created
-And the input shows a validation error: "Board name cannot be empty"
+Given the user has the task title input visible
+And the input field is empty or contains only whitespace
+When the user presses Enter
+Then no task is created
+And the input remains visible with focus retained
 ```
 
-### 8.3 Board Rename
-
-**Scenario 8: Rename a board inline**
+**Scenario 4: Attempt to add a task with title exceeding 200 characters**
 ```gherkin
-Given the user is on the boards list page
-When the user clicks the rename action on a board card
-Then the board title becomes an editable text input (pre-filled with current title)
-When the user changes the title to "Project Beta" and presses Enter (or clicks away)
-Then the board title is updated to "Project Beta" in the card and in localStorage
+Given the user has typed more than 200 characters in the task title input
+When the user presses Enter
+Then the title is truncated to 200 characters
+And the task is created with the truncated title
 ```
 
-**Scenario 9: Rename rejects empty title**
+**Scenario 5: Rapid sequential task creation**
 ```gherkin
-Given a board title is in inline-edit mode
-When the user clears the title and presses Enter
-Then the title reverts to its previous value
-And the board is not renamed
+Given the user has just created a task by pressing Enter
+When the input clears
+Then the input retains focus
+And the user can immediately type and press Enter to create another task
 ```
 
-### 8.4 Board Deletion
+### 9.3 Changing Task Status
 
-**Scenario 10: Delete a board (happy path)**
+**User Story:**
+As a user, I want to change a task's status within the Card detail modal, so that I can track which sub-steps are complete, blocked, or dropped.
+
+**Scenario 1: Change task status from "todo" to "in_progress"**
 ```gherkin
-Given the user is on the boards list page
-And more than 1 board exists
-When the user clicks the delete action on a board card
-Then a confirmation dialog appears showing "Delete '{Board Name}'? This board has {N} cards. This action cannot be undone."
-When the user confirms the deletion
-Then the board is removed from the boards list
-And the board's localStorage keys (kanban_board_{id} and kanban_cards_{id}) are deleted
+Given the Card detail modal is open with a task in "todo" status
+When the user selects "In Progress" from the task's status dropdown
+Then the task's status updates to "in_progress" immediately
+And the board card's task summary updates accordingly
+And no confirmation dialog is shown
 ```
 
-**Scenario 11: Cannot delete the last board**
+**Scenario 2: Change task status to "done"**
 ```gherkin
-Given only 1 board exists
-When the user views the boards list page
-Then the delete action on the board card is disabled
-And a tooltip indicates "Cannot delete the last board"
+Given a Card has 3 tasks with 1 already "done"
+And the Card detail modal is open
+When the user changes a second task's status to "done"
+Then the board card summary updates from "1/3 tasks" to "2/3 tasks"
+And the progress bar updates from 33% to 67%
 ```
 
-### 8.5 Navigation
-
-**Scenario 12: Navigate into a board**
+**Scenario 3: Change task status to "blocked"**
 ```gherkin
-Given the user is on the boards list page
-When the user clicks on a board card (not on a rename/delete action or chevron toggle)
-Then the URL changes to "/boards/{boardId}"
-And the board page loads with the full board view (columns, cards, drag-and-drop)
-And the header shows breadcrumb "All Boards > {Board Title}", search bar, filter controls, and theme toggle
+Given the Card detail modal is open with a task in "in_progress" status
+When the user selects "Blocked" from the task's status dropdown
+Then the task's status updates to "blocked"
+And the task row displays a visual indicator of the blocked state (e.g., amber/yellow accent)
 ```
 
-**Scenario 13: Navigate back to boards list via breadcrumb**
+**Scenario 4: Change task status to "dropped"**
 ```gherkin
-Given the user is viewing a board at "/boards/{boardId}"
-When the user clicks "All Boards" in the breadcrumb
-Then the URL changes to "/"
-And the boards list page is displayed
+Given a Card has 2 tasks, both "todo"
+When the user changes one task's status to "dropped"
+Then the board card summary shows "0/1 tasks" (dropped tasks excluded from total)
+And the progress bar shows 0%
+And the dropped task no longer counts toward the progress denominator
 ```
 
-**Scenario 14: Browser back button navigation**
+**Scenario 5: All tasks marked as "done"**
 ```gherkin
-Given the user navigated from "/" to "/boards/{boardId}"
-When the user clicks the browser back button
-Then the URL changes to "/"
-And the boards list page is displayed
+Given a Card has 3 tasks and the user marks the last remaining task as "done"
+Then the board card summary shows "3/3 tasks"
+And the progress bar shows 100% filled
 ```
 
-**Scenario 15: Direct URL access to a board**
+### 9.4 Editing Task Details
+
+**User Story:**
+As a user, I want to edit a task's title and description, so that I can refine my sub-steps as the work evolves.
+
+**Scenario 1: Edit task title inline**
 ```gherkin
-Given a board with ID "abc123" exists in localStorage
-When the user navigates directly to "/boards/abc123" (via bookmark or URL bar)
-Then the board page loads correctly with all data
+Given the Card detail modal is open with a task titled "Draft spec"
+When the user clicks on the task title text
+Then the title becomes an editable text input with the current value
+When the user changes the text to "Draft technical spec" and presses Enter or clicks away
+Then the task title updates to "Draft technical spec"
 ```
 
-**Scenario 16: Invalid board URL**
+**Scenario 2: Edit task description**
 ```gherkin
-Given no board with ID "nonexistent" exists
-When the user navigates to "/boards/nonexistent"
-Then a "Board not found" page is displayed
-And a link back to "/" (boards list) is shown
+Given the Card detail modal is open
+When the user clicks on a task to expand its detail (or clicks an edit icon)
+Then a description text area appears
+When the user types a description and clicks away
+Then the task description is saved
 ```
 
-### 8.6 Header Behavior
-
-**Scenario 17: Boards list header**
+**Scenario 3: Cancel task title edit**
 ```gherkin
-Given the user is on the boards list page at "/"
-When the header renders
-Then it displays the app title "Kanban Board"
-And a theme toggle button
-And it does NOT display a search bar, filter controls, or breadcrumb
+Given the user is editing a task title
+When the user presses Escape
+Then the edit is cancelled and the original title is restored
 ```
 
-**Scenario 18: Board page header**
+### 9.5 Deleting a Task
+
+**User Story:**
+As a user, I want to delete a task from a Card, so that I can remove sub-steps that are no longer relevant.
+
+**Scenario 1: Delete a task with confirmation**
 ```gherkin
-Given the user is viewing a board titled "Project Alpha"
-When the header renders
-Then it displays a breadcrumb: "All Boards > Project Alpha"
-And a search bar
-And filter controls
-And a theme toggle button
-And it does NOT display the standalone app title
+Given the Card detail modal is open with a task titled "Set up CI"
+When the user clicks the delete button on the task row
+Then a confirmation dialog appears with the message "Delete task 'Set up CI'? This cannot be undone."
+When the user clicks "Delete"
+Then the task is removed from the task list
+And the board card's task summary updates to reflect the new count
 ```
 
-### 8.7 Data Migration
-
-**Scenario 19: Phase 1 data auto-migrated on first load**
+**Scenario 2: Cancel task deletion**
 ```gherkin
-Given the user has Phase 1 data in localStorage (kanban_board and kanban_cards keys)
-And no kanban_migrated flag exists
+Given the confirmation dialog is showing for task deletion
+When the user clicks "Cancel"
+Then the dialog closes
+And the task remains in the list unchanged
+```
+
+**Scenario 3: Delete last task in a Card**
+```gherkin
+Given a Card has exactly 1 task
+When the user deletes that task
+Then the task list shows the empty state message "No tasks yet. Add one to break this card into steps."
+And the board card no longer displays a task summary or progress bar
+```
+
+### 9.6 Filtering by Task Status
+
+**User Story:**
+As a user, I want to filter the board by task status, so that I can quickly find Cards that have blocked, in-progress, or other specific tasks.
+
+**Scenario 1: Filter by a single task status**
+```gherkin
+Given the board has 3 Cards:
+  - Card A with tasks: 1 "blocked", 1 "done"
+  - Card B with tasks: 2 "in_progress"
+  - Card C with no tasks
+When the user checks the "Blocked" status filter checkbox
+Then only Card A is visible on the board
+And Card B and Card C are hidden
+```
+
+**Scenario 2: Filter by multiple task statuses (OR logic)**
+```gherkin
+Given the board has 3 Cards:
+  - Card A with tasks: 1 "blocked"
+  - Card B with tasks: 1 "in_progress"
+  - Card C with tasks: 1 "done"
+When the user checks both "Blocked" and "In Progress" filter checkboxes
+Then Card A and Card B are visible
+And Card C is hidden
+```
+
+**Scenario 3: Task status filter combined with search (AND logic)**
+```gherkin
+Given the board has 3 Cards:
+  - Card "API Integration" with tasks: 1 "blocked"
+  - Card "API Testing" with tasks: 1 "done"
+  - Card "UI Polish" with tasks: 1 "blocked"
+When the user types "API" in the search bar
+And checks the "Blocked" status filter checkbox
+Then only "API Integration" is visible
+And "API Testing" is hidden (no blocked tasks)
+And "UI Polish" is hidden (does not match search)
+```
+
+**Scenario 4: Cards with no tasks are hidden when status filter is active**
+```gherkin
+Given the board has 2 Cards:
+  - Card A with 1 task ("todo")
+  - Card B with 0 tasks
+When the user checks any task status filter checkbox
+Then Card B is hidden regardless of which status is checked
+```
+
+**Scenario 5: Clear all filters resets task status checkboxes**
+```gherkin
+Given the user has checked "Blocked" and "In Progress" status filters
+And has typed "API" in the search bar
+When the user clicks "Clear all filters"
+Then all task status checkboxes are unchecked
+And the search bar is cleared
+And all Cards are visible again
+```
+
+**Scenario 6: No matching cards**
+```gherkin
+Given no Cards on the board have tasks with status "blocked"
+When the user checks the "Blocked" status filter checkbox
+Then each column displays an empty state
+And a message "No matching cards" is visible
+```
+
+**Scenario 7: DnD disabled during filtering**
+```gherkin
+Given the user has any task status filter checkbox checked
+When the user attempts to drag a Card
+Then the drag operation does not initiate
+And Cards are not draggable
+```
+
+### 9.7 Fixed Column Structure
+
+**User Story:**
+As a user, I want a pre-defined set of columns that match the work lifecycle, so that I don't have to configure the board structure myself.
+
+**Scenario 1: Fresh install shows 5 fixed columns**
+```gherkin
+Given the user opens the app for the first time (no localStorage data)
+When the board loads
+Then 5 columns are displayed: "To Do", "In Progress", "Done", "Dropped", "Blocked"
+And no "Add Column" button is visible
+And column titles are not editable
+```
+
+**Scenario 2: Column headers are read-only**
+```gherkin
+Given the board is displayed with 5 fixed columns
+When the user clicks on a column title
+Then nothing happens (no edit mode, no cursor change)
+And no column context menu is available
+```
+
+**Scenario 3: Fresh install (no Phase 1 data)**
+```gherkin
+Given the user is loading the app for the first time (no localStorage)
 When the app loads
-Then the Phase 1 board is migrated as the first board in the new multi-board schema
-And a kanban_boards index entry is created with the correct title and card count
-And kanban_board_{id} and kanban_cards_{id} keys are created with the original data
-And the old kanban_board and kanban_cards keys are deleted
-And the kanban_migrated flag is set to true
-And the user sees their existing board on the boards list page with all data intact
+Then the board displays 5 fixed columns: "To Do", "In Progress", "Done", "Dropped", "Blocked"
+And all columns are empty
+And `kanban_schema_version` is set to 2 in localStorage
 ```
 
-**Scenario 20: Fresh install (no previous data)**
+**Scenario 4: Upgrade from Phase 1 to Phase 2**
 ```gherkin
-Given no localStorage data exists for the app (no Phase 1 keys and no Phase 2 keys)
-When the app loads
-Then a default board is created with title "My Board", 3 default columns, and 0 cards
-And the user sees the boards list page with one board card
+Given the user has Phase 1 localStorage data (Phase 1 app version)
+When the app loads Phase 2 for the first time (no `kanban_schema_version` key)
+Then any Phase 1 data is discarded
+And the board displays a fresh 5-column board with 5 fixed columns
+And the board is empty (no cards)
+And `kanban_schema_version` is set to 2 in localStorage
 ```
 
-**Scenario 21: Migration does not re-run**
+### 9.8 Deleting a Card with Tasks
+
+**Scenario 1: Delete Card that contains tasks**
 ```gherkin
-Given the kanban_migrated flag is set to true in localStorage
-And the old kanban_board key does not exist
-When the app loads
-Then no migration logic executes
-And the app loads the multi-board data from kanban_boards as normal
-```
-
-**Scenario 22: Migration handles corrupted Phase 1 data**
-```gherkin
-Given the localStorage contains a kanban_board key with invalid/corrupted JSON
-And no kanban_migrated flag exists
-When the app loads
-Then the migration logs an error to the console
-And a fresh default board is created
-And the corrupted keys are cleaned up
-And the kanban_migrated flag is set to true
-```
-
-### 8.8 Search and Filter Scope
-
-**Scenario 23: Search scoped to current board**
-```gherkin
-Given the user is viewing Board A which contains a card titled "Fix login bug"
-And Board B contains a card titled "Fix payment bug"
-When the user types "Fix" in the search bar
-Then only "Fix login bug" from Board A is shown in the results
-And cards from Board B are not searched or displayed
-```
-
-### 8.9 Within-Board Functionality
-
-**Scenario 24: All Phase 1 features work within a board**
-```gherkin
-Given the user is viewing a board at "/boards/{boardId}"
-When the user performs any Phase 1 action (add/edit/delete columns, add/edit/delete/drag cards, search, filter)
-Then the action works identically to Phase 1 behavior
-And changes are persisted to the board-specific localStorage keys
-And the board card count on the boards list is updated after card add/delete
+Given a Card has 4 tasks
+When the user deletes the Card (confirms deletion)
+Then the Card is removed from the column
+And all 4 tasks belonging to that Card are removed from storage
+And the tasks do not leak into orphaned state
 ```
 
 ---
 
-## 9. Migration Plan
+## 10. Additional Context & Notes
 
-### 9.1 Migration Logic (step-by-step)
+### 10.1 Current Workaround
+Users currently write ad-hoc checklists in the Card description field using plain text like `- [ ] Do thing`. This provides no status tracking, no filtering, and no visual progress indication.
 
-The migration runs as a synchronous function during app initialization, **before** the React tree renders.
+### 10.2 Assumptions
+- Phase 1 is fully implemented and stable before Phase 2 development begins.
+- The five-column fixed structure is the correct abstraction for the target user. If user feedback strongly requests customizable columns, this decision can be revisited in a future phase.
+- Task ordering by creation date is sufficient. If users request manual ordering, it can be added later without schema changes (add an `order` field to Task).
+- The "Dropped" and "Blocked" columns are valuable even for solo users (e.g., parking work that is waiting on an external dependency).
 
-```
-Step 1: Read kanban_migrated from localStorage
-        → If true: SKIP migration, proceed to normal load
-        → If false or absent: continue to Step 2
+### 10.3 Dependencies
+- Phase 1 implementation must be complete: Board, Column, Card, DnD, Search, Priority Filter, localStorage persistence.
+- Data migration utility must run on first Phase 2 load.
+- No new external libraries are expected. The existing stack (React, TypeScript, Tailwind, dnd-kit, lucide-react, uuid) should suffice.
 
-Step 2: Read kanban_board from localStorage
-        → If absent: no Phase 1 data exists, go to Step 6
-        → If present: continue to Step 3
-
-Step 3: Parse kanban_board JSON
-        → If parse fails: log error, go to Step 6
-        → If parse succeeds: continue to Step 4
-
-Step 4: Read and parse kanban_cards from localStorage
-        → If absent or parse fails: use empty cards object {}
-        → Continue to Step 5
-
-Step 5: Write new multi-board data
-        a. Generate a board ID (if the old board has one, reuse it; otherwise generate UUID)
-        b. Compute totalCards = Object.keys(parsedCards).length
-        c. Write kanban_boards = [{ id, title, totalCards, createdAt, updatedAt }]
-        d. Write kanban_board_{id} = parsedBoard (with id field ensured)
-        e. Write kanban_cards_{id} = parsedCards
-        f. Delete kanban_board
-        g. Delete kanban_cards
-        h. Write kanban_migrated = true
-        → Migration complete
-
-Step 6: (Fresh install) Check if kanban_boards exists and has entries
-        → If yes: normal load, no action needed
-        → If no: create default board
-            a. Generate UUID for default board
-            b. Create Board with title "My Board" and 3 default columns
-               ("To Do", "In Progress", "Done")
-            c. Write kanban_boards = [defaultBoardMeta]
-            d. Write kanban_board_{id} = defaultBoard
-            e. Write kanban_cards_{id} = {}
-            f. Write kanban_migrated = true
-
-Step 6a: (Edge case guard) If kanban_migrated = true but kanban_boards is empty
-        → Re-run Step 6 to create a fresh default board
-        → (Handles rare case where migration flag was written but boards index write failed)
-```
-
-### 9.2 Migration Safety
-
-- Migration is **idempotent**: the `kanban_migrated` flag prevents re-execution
-- Migration is **atomic in intent**: if any write fails mid-migration (localStorage quota), the old keys are NOT deleted; on next load the migration retries
-- Migration runs **synchronously before render**: users never see a flash of empty state
+### 10.4 Out of Scope
+- Multi-board support (deferred to a future phase or deprioritized)
+- Backend/database (Phase 3)
+- Task-level priority, labels, or assignees
+- Task drag-and-drop reordering
+- Quick-add tasks from the board view (only via Card detail modal)
+- Subtasks within tasks
+- Task due dates
+- Notification or reminder system
+- Cross-tab localStorage sync
 
 ---
 
-## 10. Out of Scope (Phase 3+)
+## 11. Notes for AI Agents
 
-| Item                                   | Rationale                                         |
-| -------------------------------------- | ------------------------------------------------- |
-| Backend API / database                 | Phase 3 — requires server infrastructure          |
-| User authentication                    | Phase 3 — depends on backend                      |
-| Real-time collaboration                | Phase 3 — requires WebSockets + backend           |
-| Board templates / duplication          | Low priority, can be added incrementally           |
-| Cross-board search                     | Complexity not justified for localStorage-only     |
-| Board reordering / drag-and-drop       | Low priority, boards are ordered by creation date  |
-| Board archiving (soft-delete)          | Can be added if users request it                   |
-| Board sharing / export                 | Requires backend or file-download mechanism        |
-| Activity log / card history            | Phase 3                                            |
-| File attachments                       | Phase 3                                            |
-| Due dates, reminders, calendar         | Phase 3                                            |
-| Board-level settings (e.g., WIP limits)| Future enhancement                                 |
+This section provides precise implementation guidance for AI coding agents working on this ticket.
+
+### 11.1 Type Changes
+- Add `TaskStatus` as a union type: `"todo" | "in_progress" | "done" | "dropped" | "blocked"`.
+- Add the `Task` interface to `src/types/index.ts`.
+- Add `taskIds: string[]` to the existing `Card` interface.
+- Add `tasks: Record<string, Task>` to the `AppState` interface.
+- Add `ADD_TASK`, `UPDATE_TASK`, and `DELETE_TASK` to the `Action` union type.
+- Remove `ADD_COLUMN`, `DELETE_COLUMN`, `REORDER_COLUMNS` from the `Action` union (or mark as deprecated if migration needs them temporarily).
+
+### 11.2 Reducer Changes
+- The `DELETE_CARD` case must iterate over `state.cards[id].taskIds` and delete each task from `state.tasks` before removing the card.
+- All three new task actions must update `board.updatedAt`.
+- Guard `UPDATE_TASK` and `DELETE_TASK` against missing task IDs (return state unchanged).
+
+### 11.3 Default State
+- `createDefaultState()` in `src/utils/defaults.ts` must produce 5 fixed columns with the exact titles, colors, and ordering specified in Section 3.1.
+- The default `tasks` map is `{}`.
+- Each default Card must have `taskIds: []`.
+
+### 11.4 Migration Logic
+- On first load, check `kanban_schema_version` in localStorage.
+- If absent or less than 2: ignore any Phase 1 data (`kanban_board`, `kanban_cards` keys) and initialize a fresh Phase 2 `AppState` with default 5 columns and empty tasks.
+- Write `kanban_schema_version: 2` to localStorage after fresh init.
+- Subsequent loads check `kanban_schema_version` and skip re-initialization if present and value is 2 or higher.
+- No fuzzy column title matching or phase 1 data preservation is required.
+
+### 11.5 Filter Logic
+- In `FilterContext.tsx`, store `taskStatusFilter` as a `Set<TaskStatus>`.
+- `toggleTaskStatusFilter(status)` should add the status if absent, remove it if present.
+- The `isFiltering` derivation must include `taskStatusFilter.size > 0`.
+- Card visibility logic (likely in `Board.tsx` or a custom hook): a card passes the task status filter if `taskStatusFilter.size === 0` OR `card.taskIds.some(id => taskStatusFilter.has(state.tasks[id].status))`. Cards with zero tasks are hidden when any task status filter is active.
+
+### 11.6 Component Behavior
+- `TaskSummary` receives `taskIds: string[]` and reads task data from context. If `taskIds.length === 0`, render nothing (return `null`).
+- `TaskItem` shows the task title as editable text. Click to enter edit mode, Enter or blur to save, Escape to cancel.
+- `TaskStatusSelect` is a `<select>` or custom dropdown. Options: "To Do", "In Progress", "Done", "Dropped", "Blocked" with corresponding `TaskStatus` values.
+- `AddTaskForm`: controlled input. On Enter with non-empty trimmed value, dispatch `ADD_TASK`. On Escape or blur with empty value, collapse the form.
+- `TaskStatusFilter` renders 5 checkboxes. Each checkbox's `checked` state is derived from `taskStatusFilter.has(status)`. `onChange` calls `toggleTaskStatusFilter(status)`.
+
+### 11.7 localStorage Keys
+- `kanban_tasks` stores `Record<string, Task>`.
+- `kanban_schema_version` stores a number (currently `2`).
+- All existing keys (`kanban_board`, `kanban_cards`, `kanban_theme`) remain unchanged in purpose.
+
+### 11.8 Visual Design Guidance
+- Task status badges should use the same color scheme as column headers: todo=slate, in_progress=blue, done=green, dropped=red, blocked=amber.
+- Progress bar: use a thin horizontal bar (4px height) with green fill for the done percentage. Gray background for remaining.
+- Task list in Card detail: each row should be compact (single line for title + status + delete), similar to a todo-list UX pattern.
 
 ---
 
-## 11. Success Metrics
+## 12. Engineering Notes
 
-| Metric                                          | Target           |
-| ----------------------------------------------- | ---------------- |
-| First Contentful Paint                           | < 1.5s           |
-| Route transition latency (list <-> board)        | < 200ms          |
-| Board creation time (click Create to card visible) | < 300ms        |
-| Migration execution time (Phase 1 data)          | < 100ms          |
-| localStorage read/write per operation             | < 50ms           |
-| Lighthouse Performance Score                     | > 90             |
-| Zero data loss during migration                  | 100% of Phase 1 data preserved |
-| Boards list renders correctly with 10 boards     | No layout breakage |
+### 12.1 Performance Considerations
+- Task lookups are O(1) via the normalized `state.tasks` map. Avoid denormalizing tasks into Card objects.
+- The task status filter requires iterating over each visible Card's `taskIds` on every filter change. For the expected scale (tens of Cards, each with single-digit Tasks), this is negligible. No memoization needed unless profiling indicates otherwise.
+- The `TaskSummary` component on board Cards should be lightweight. Compute done/total counts inline; do not subscribe to individual task state changes.
+
+### 12.2 Testing Strategy
+- Unit test the reducer for all three new task actions, including edge cases (missing IDs, empty taskIds).
+- Unit test the fresh-start logic: verify that Phase 1 data is ignored, default 5-column board is created, schema_version is set to 2.
+- Unit test filter logic: single status, multiple statuses, combined with search, cards with no tasks.
+- Unit test progress calculation: verify that dropped tasks are excluded from the denominator, blocked tasks are included.
+- Component test `TaskItem` for inline edit, status change, and delete flows.
+- Component test `AddTaskForm` for creation, validation, escape-to-cancel.
+
+### 12.3 Suggested Implementation Order
+1. **Types**: Update `src/types/index.ts` with Task, TaskStatus, modified Card and AppState, new Action variants.
+2. **Migration**: Build `src/utils/migration.ts` and integrate into `resolveInitialState()`.
+3. **Defaults**: Update `createDefaultState()` for 5 fixed columns and tasks map.
+4. **Reducer**: Add task action cases to `boardReducer`; modify `DELETE_CARD`; remove column mutation cases.
+5. **Storage**: Update `loadState`/`saveState` to handle `kanban_tasks` and `kanban_schema_version`.
+6. **Filter Context**: Add `taskStatusFilter` and `toggleTaskStatusFilter`.
+7. **Board/Column**: Remove AddColumn, lock column headers to read-only, remove column menu.
+8. **TaskSection + children**: Build the new Task components for Card detail modal.
+9. **CardDetail**: Integrate TaskSection.
+10. **TaskSummary**: Build and integrate into CardItem.
+11. **TaskStatusFilter**: Build and integrate into FilterControls.
+12. **Board filter logic**: Wire task status filter into card visibility.
+13. **Polish**: Empty states, visual indicators, progress bar styling.
+
+---
+
+## 13. Success Metrics
+
+| Metric                                          | Target                          |
+| ----------------------------------------------- | ------------------------------- |
+| Users can add a task within 2 interactions       | Add Task click + Enter          |
+| Task status change latency                       | < 50ms (perceived instant)      |
+| Data migration preserves 100% of Phase 1 cards  | Zero data loss on upgrade       |
+| Filter response time                             | < 100ms                         |
+| First Contentful Paint                           | < 1.5s (unchanged from Phase 1) |
+| Lighthouse Performance Score                     | > 90 (unchanged from Phase 1)   |
+| No increase in localStorage payload > 2x        | Tasks add minimal overhead      |
+
+---
+
+## 14. Future Considerations
+
+| Feature                          | Notes                                                         |
+| -------------------------------- | ------------------------------------------------------------- |
+| Task manual reordering           | Add `order: number` field to Task; enable DnD within task list |
+| Task assignee                    | Requires user model; deferred to Phase 3+                     |
+| Task priority                    | Could mirror Card priority; evaluate user demand first        |
+| Bulk task status change          | "Mark all as done" action on Card level                       |
+| Task templates                   | Pre-populate Cards with standard task sets                    |
+| Multi-board                      | May revisit if user feedback warrants it                      |
+
+---
+
+## Appendix: Status Color Reference
+
+| TaskStatus     | Display Label   | Hex Color  | Tailwind Class Suggestion |
+| -------------- | --------------- | ---------- | ------------------------- |
+| `todo`         | To Do           | `#94a3b8`  | `text-slate-400`          |
+| `in_progress`  | In Progress     | `#3b82f6`  | `text-blue-500`           |
+| `done`         | Done            | `#22c55e`  | `text-green-500`          |
+| `dropped`      | Dropped         | `#ef4444`  | `text-red-500`            |
+| `blocked`      | Blocked         | `#f59e0b`  | `text-amber-500`          |

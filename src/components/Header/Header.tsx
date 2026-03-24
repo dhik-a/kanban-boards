@@ -21,12 +21,9 @@ function BoardTitle() {
     }
   }, [isEditing]);
 
-  // Keep editValue in sync when board title changes externally (e.g. after dispatch).
-  useEffect(() => {
-    if (!isEditing) {
-      setEditValue(board.title);
-    }
-  }, [board.title, isEditing]);
+  // editValue is reset from board.title every time the user enters edit mode
+  // via startEditing(), so no sync effect is needed. The read-mode button
+  // renders board.title directly, which is always current (BUG-01 fix).
 
   const startEditing = () => {
     setEditValue(board.title);
@@ -150,13 +147,6 @@ export function Header() {
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync localSearch back if clearFilters() is called externally.
-  useEffect(() => {
-    if (searchQuery === "") {
-      setLocalSearch("");
-    }
-  }, [searchQuery]);
-
   // Cancel any pending debounce timer on unmount to prevent stale setState
   // calls after the component is gone (CRIT-3).
   useEffect(() => {
@@ -189,6 +179,14 @@ export function Header() {
   const handleLabelClick = (label: string) => {
     // Toggle: clicking the active label chip clears it (QA-1).
     setLabelFilter(labelFilter === label ? null : label);
+  };
+
+  // Clears all filters and resets the local search input in one action.
+  // Keeping localSearch in sync here avoids needing a useEffect that calls
+  // setState in response to searchQuery changes (BUG-01 fix).
+  const handleClearAllFilters = () => {
+    clearFilters();
+    setLocalSearch("");
   };
 
   return (
@@ -283,7 +281,7 @@ export function Header() {
           {isFiltering && (
             <button
               type="button"
-              onClick={clearFilters}
+              onClick={handleClearAllFilters}
               aria-label="Clear all filters"
               className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 border border-slate-300 dark:border-slate-600 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >

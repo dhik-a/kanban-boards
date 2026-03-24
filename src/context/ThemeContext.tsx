@@ -66,7 +66,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 }
 
 // ─── Consumer hook ─────────────────────────────────────────────────────────────
-
+// eslint-disable-next-line react-refresh/only-export-components
 export function useThemeContext(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (ctx === null) {

@@ -64,6 +64,7 @@ export function AddTaskForm({ cardId }: AddTaskFormProps) {
       createTask();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation(); // Prevent Escape from bubbling to the Modal's Escape listener
       if (inputValue === "") {
         // AC-13: collapse form when input is already empty
         setIsExpanded(false);

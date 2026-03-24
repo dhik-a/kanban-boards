@@ -77,6 +77,7 @@ export function saveState(state: AppState): string | null {
   // Snapshot current values before writing so we can roll back on failure.
   const prevBoard = localStorage.getItem(BOARD_KEY);
   const prevCards = localStorage.getItem(CARDS_KEY);
+  const prevTasks = localStorage.getItem(TASKS_KEY);
 
   try {
     localStorage.setItem(BOARD_KEY, JSON.stringify(state.board));
@@ -103,7 +104,7 @@ export function saveState(state: AppState): string | null {
   try {
     localStorage.setItem(TASKS_KEY, JSON.stringify(state.tasks));
   } catch {
-    // Roll back both board and cards writes.
+    // Roll back all three writes.
     try {
       if (prevBoard === null) {
         localStorage.removeItem(BOARD_KEY);
@@ -118,6 +119,13 @@ export function saveState(state: AppState): string | null {
         localStorage.setItem(CARDS_KEY, prevCards);
       }
     } catch { /* ignore */ }
+    try {
+      if (prevTasks === null) {
+        localStorage.removeItem(TASKS_KEY);
+      } else {
+        localStorage.setItem(TASKS_KEY, prevTasks);
+      }
+    } catch { /* ignore */ }
     return "Unable to save changes: storage is full.";
   }
 
@@ -126,10 +134,14 @@ export function saveState(state: AppState): string | null {
   // and is never set if the board/cards/tasks writes failed (AC-3).
   try {
     localStorage.setItem(SCHEMA_VERSION_KEY, String(SCHEMA_VERSION));
-  } catch {
-    // Schema version write failure is non-fatal — state is already persisted.
-    // On next load the schema check will treat this as a fresh install and
-    // overwrite with defaults, but that is safer than silently ignoring it.
+  } catch (e) {
+    // Non-fatal: state data is already written. However, if the version marker
+    // is missing on next load, the app will treat storage as a fresh install
+    // and overwrite with defaults — warn so this is visible during debugging.
+    console.warn(
+      "[Storage] Failed to write schema version. Data may be re-initialized on next load:",
+      e
+    );
   }
 
   return null;

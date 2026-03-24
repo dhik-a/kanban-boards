@@ -229,7 +229,11 @@ export function Board() {
         </DragOverlay>
       </DndContext>
 
+      {/* key ensures CardDetail remounts when a different card is opened,
+          so local edit state (title/desc) is always initialised from the
+          new card rather than needing a sync effect (BUG-01). */}
       <CardDetail
+        key={activeCardId ?? "none"}
         cardId={activeCardId}
         columnId={activeCardColumnId}
         onClose={closeCardDetail}

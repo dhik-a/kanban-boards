@@ -1,4 +1,4 @@
-> **Note:** This document covers Phase 1 of the Kanban board application (single-board, localStorage, no authentication). For the multi-board extension, see [PRD-phase-2.md](./PRD-phase-2.md).
+> **Note:** This document covers Phase 1 of the Kanban board application (single-board, localStorage, no authentication). For the Phase 2 extension (nested Tasks, fixed 5-column structure, task-status filtering), see [PRD-phase-2.md](./PRD-phase-2.md).
 
 # Product Requirements Document: Kanban Board App
 

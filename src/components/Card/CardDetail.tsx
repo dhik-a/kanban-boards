@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Trash2, Plus, X } from "lucide-react";
 import { Modal } from "../UI/Modal";
 import { ConfirmDialog } from "../UI/ConfirmDialog";
@@ -217,13 +217,10 @@ export function CardDetail({ cardId, columnId, onClose }: CardDetailProps) {
   const [titleValue, setTitleValue] = useState(card?.title ?? "");
   const [descValue, setDescValue] = useState(card?.description ?? "");
 
-  // Reinitialize local state whenever the target card changes.
-  useEffect(() => {
-    if (card) {
-      setTitleValue(card.title);
-      setDescValue(card.description);
-    }
-  }, [cardId]); // intentionally only [cardId]
+  // Note: local state (titleValue, descValue) does not need a sync effect here
+  // because Board.tsx passes key={cardId} to CardDetail, which causes React to
+  // fully remount this component when a different card is opened — initial state
+  // is always derived from the card prop on first render (BUG-01 fix).
 
   // updateCard must be declared unconditionally (before the early return)
   // to comply with React's Rules of Hooks — previously placed after the guard,

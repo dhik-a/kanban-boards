@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find /Users/andhikahaidar/Documents/Learning/kanban -name TICKET-P2-005* -o -name *phase2*context*)",
+      "Bash(find /Users/andhikahaidar/Documents/Learning/kanban/docs/tickets -name *P2-006* -type f)",
+      "Bash(/tmp/review_analysis.md:*)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

@@ -71,7 +71,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
 }
 
 // ─── Consumer hook ─────────────────────────────────────────────────────────────
-
+// eslint-disable-next-line react-refresh/only-export-components
 export function useFilterContext(): FilterContextValue {
   const ctx = useContext(FilterContext);
   if (ctx === null) {

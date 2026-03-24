@@ -1,0 +1,1 @@
+- [project_phase2_direction.md](./project_phase2_direction.md) — Phase 2 pivoted from multi-board to nested Tasks with fixed 5-column structure

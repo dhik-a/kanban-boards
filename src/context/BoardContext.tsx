@@ -2,7 +2,6 @@ import {
   createContext,
   useContext,
   useReducer,
-  useRef,
   useState,
   useCallback,
   type ReactNode,
@@ -277,23 +276,22 @@ const BoardContext = createContext<BoardContextValue | null>(null);
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function BoardProvider({ children }: { children: ReactNode }) {
-  // resolveInitialState() reads localStorage — it must NOT run at module scope
-  // because that breaks tests (no DOM) and SSR environments. We guard it with
-  // a ref so it executes exactly once on first render (CRITICAL #1).
-  const initRef = useRef<ReturnType<typeof resolveInitialState> | null>(null);
-  if (!initRef.current) {
-    initRef.current = resolveInitialState();
-  }
-  const { state: initialState, wasCorrupted } = initRef.current;
+  // Resolve initial state once via useState's lazy initializer — this avoids
+  // reading a ref during render (BUG-01) while ensuring localStorage is never
+  // read at module scope (safe for tests and SSR environments).
+  const [{ initialState, wasCorrupted }] = useState(() => {
+    const { state, wasCorrupted } = resolveInitialState();
+    return { initialState: state, wasCorrupted };
+  });
 
+  // Initialise reducer with the already-resolved state object. The third-arg
+  // lazy form is not needed here because we already have the value in hand.
   const [state, dispatch] = useReducer(boardReducer, initialState);
 
   // ── Error / warning banner state ──────────────────────────────────────────
   const [saveError, setSaveError] = useState<string | null>(null);
   const [corruptionWarning, setCorruptionWarning] = useState<string | null>(
-    wasCorrupted
-      ? "Your saved board data was corrupted. Starting fresh."
-      : null
+    wasCorrupted ? "Your saved board data was corrupted. Starting fresh." : null
   );
 
   const handleSaveResult = useCallback((error: string | null) => {
@@ -323,7 +321,7 @@ export function BoardProvider({ children }: { children: ReactNode }) {
 }
 
 // ─── Consumer hook ────────────────────────────────────────────────────────────
-
+// eslint-disable-next-line react-refresh/only-export-components
 export function useBoardContext(): BoardContextValue {
   const ctx = useContext(BoardContext);
   if (ctx === null) {
