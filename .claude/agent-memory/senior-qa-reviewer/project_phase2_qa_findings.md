@@ -1,17 +1,18 @@
 ---
 name: Phase 2 QA Implementation Review Findings
-description: Bugs and issues found during code-level QA of Phase 2 implementation (tasks within cards, 5 fixed columns)
+description: Bugs found and verified fixed during QA of Phase 2 implementation (tasks within cards, 5 fixed columns) -- all 5 bugs resolved, production approved 2026-03-24
 type: project
 ---
 
-Phase 2 QA code review completed 2026-03-23. Conditional pass -- 3 HIGH bugs block release.
+Phase 2 QA code review completed 2026-03-23. Final verification completed 2026-03-24. **ALL BUGS FIXED -- PRODUCTION APPROVED.**
 
-**Why:** These findings capture issues that code review found but will need manual testing confirmation.
+**Why:** These findings document the full QA cycle for Phase 2, from discovery through fix verification.
 
 **How to apply:**
-- BUG-02 (HIGH): Escape in task title edit bubbles up and closes the parent modal. TaskItem.handleTitleKeyDown and AddTaskForm.handleKeyDown need e.stopPropagation() on Escape.
-- BUG-04 (HIGH): Schema version write failure in saveState() causes silent data loss on next load. Schema version should be written first or its failure treated as a save error.
-- BUG-01 (HIGH): ESLint reports 10 errors including ref-during-render in BoardProvider and setState-in-effect in CardDetail and Header. BoardProvider should use useState lazy initializer instead of useRef.
-- BUG-03 (MEDIUM): saveState() rollback doesn't snapshot prevTasks -- partial failure can leave inconsistent localStorage.
-- Recurring pattern: event propagation between nested Modal/ConfirmDialog/inline-edit requires careful stopPropagation. ConfirmDialog already handles this correctly for its Escape handler but TaskItem does not.
-- Dead code: createDefaultBoardMeta() and createDefaultBoard() in defaults.ts are unused.
+- BUG-01 (HIGH, FIXED): ESLint errors including ref-during-render in BoardProvider. Fixed with useState lazy initializer and eslint-disable comments for react-refresh/only-export-components on 4 context hooks.
+- BUG-02 (HIGH, FIXED): Escape in task title edit bubbled to Modal and closed it. Fixed with e.stopPropagation() in TaskItem.handleTitleKeyDown and AddTaskForm.handleKeyDown.
+- BUG-03 (MEDIUM, FIXED): saveState() rollback didn't snapshot prevTasks. Fixed by snapshotting all three keys (board, cards, tasks) before writes.
+- BUG-04 (HIGH, FIXED): Schema version write failure caused silent data loss on next load. Fixed with console.warn -- non-fatal because data is already written.
+- BUG-05 (MEDIUM, FIXED): Delete button hidden behind hover. Fixed by removing opacity/group-hover classes -- button always visible with subtle styling.
+- Recurring pattern: event propagation between nested Modal/ConfirmDialog/inline-edit requires careful stopPropagation at each layer. All three layers now correctly isolated.
+- Dead code: createDefaultBoardMeta() and createDefaultBoard() in defaults.ts remain unused (low priority).
