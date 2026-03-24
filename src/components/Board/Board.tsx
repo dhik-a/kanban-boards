@@ -40,7 +40,7 @@ import { CardItemOverlay } from "../Card/CardItem";
  */
 export function Board() {
   const { state, dispatch } = useBoardContext();
-  const { isFiltering } = useFilterContext();
+  const { isHardFiltering } = useFilterContext();
   const { addToast } = useToastContext();
   const { board } = state;
 
@@ -101,8 +101,8 @@ export function Board() {
       return;
     }
 
-    // ── Card DnD — disabled when filtering ───────────────────────────────────
-    if (isFiltering) return;
+    // ── Card DnD — disabled when hard filtering (search/priority/label) ─────
+    if (isHardFiltering) return;
 
     // Find source column (the column that contains the dragged card).
     const sourceColumn = board.columns.find((col) => col.cardIds.includes(activeId));

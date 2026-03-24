@@ -67,6 +67,8 @@ function boardReducer(state: AppState, action: Action): AppState {
           ...state.board,
           columns: [...state.board.columns, newColumn],
         }),
+        cards: state.cards,
+        projects: state.projects,
       };
     }
 
@@ -107,6 +109,7 @@ function boardReducer(state: AppState, action: Action): AppState {
           columns: state.board.columns.filter((col) => col.id !== id),
         }),
         cards: updatedCards,
+        projects: state.projects,
       };
     }
 
@@ -118,6 +121,8 @@ function boardReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         board: withUpdatedAt({ ...state.board, columns }),
+        cards: state.cards,
+        projects: state.projects,
       };
     }
 
@@ -132,6 +137,7 @@ function boardReducer(state: AppState, action: Action): AppState {
       return {
         board: withUpdatedAt({ ...state.board, columns }),
         cards: { ...state.cards, [card.id]: card },
+        projects: state.projects,
       };
     }
 
@@ -162,6 +168,7 @@ function boardReducer(state: AppState, action: Action): AppState {
       return {
         board: withUpdatedAt({ ...state.board, columns }),
         cards: updatedCards,
+        projects: state.projects,
       };
     }
 
@@ -200,6 +207,33 @@ function boardReducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         board: withUpdatedAt({ ...state.board, columns }),
+      };
+    }
+
+    // ── Projects ─────────────────────────────────────────────────────────────
+    case "ADD_PROJECT":
+      return {
+        ...state,
+        board: withUpdatedAt(state.board),
+        projects: { ...state.projects, [action.payload.id]: action.payload },
+      };
+
+    case "DELETE_PROJECT": {
+      const { id } = action.payload;
+      const updatedCards = Object.fromEntries(
+        Object.entries(state.cards).map(([cid, card]) => [
+          cid,
+          card.projectId === id ? { ...card, projectId: null } : card,
+        ])
+      );
+      const remainingProjects = Object.fromEntries(
+        Object.entries(state.projects).filter(([projectId]) => projectId !== id)
+      );
+      return {
+        ...state,
+        board: withUpdatedAt(state.board),
+        projects: remainingProjects,
+        cards: updatedCards,
       };
     }
 
